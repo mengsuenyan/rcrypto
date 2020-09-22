@@ -1,6 +1,11 @@
 
 extern crate rmath;
 
-pub mod cipher;
+mod cipher;
+pub use cipher::Cipher;
 
 mod crypto_err;
+pub use crypto_err::{CryptoErrorKind, CryptoError};
+
+mod aes;
+pub use aes::AES;

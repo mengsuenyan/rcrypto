@@ -9,3 +9,6 @@ pub use crypto_err::{CryptoErrorKind, CryptoError};
 
 mod aes;
 pub use aes::AES;
+
+mod des;
+pub use des::DES;

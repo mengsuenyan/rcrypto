@@ -7,6 +7,7 @@ use crate::des::const_tables as mct;
 use crate::{Cipher, CryptoError, CryptoErrorKind};
 
 /// DES
+#[derive(Clone)]
 pub struct DES {
     ks: [u64; 16],
 }

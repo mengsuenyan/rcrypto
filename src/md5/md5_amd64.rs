@@ -66,6 +66,7 @@ impl MD5 {
         }
     }
     
+    #[target_feature(enable = "sse2")]
     unsafe fn update_inner(&mut self, data_block: Option<&[u8]>) {
         let data_block = match data_block {
             Some(x) => x,

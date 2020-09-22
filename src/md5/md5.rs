@@ -80,6 +80,7 @@ impl Digest for MD5 {
             let dst = &mut tmp[(1+pad_len)..(1+pad_len+8)];
             dst.copy_from_slice(&src[..]);
             self.write(&tmp[0..(1+pad_len+8)]);
+            self.len = 0;
             self.is_checked = true;
         }
         

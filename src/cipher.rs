@@ -19,14 +19,15 @@ pub trait Cipher {
 
 /// A trait for message digest algorithm used in the cryptography
 pub trait Digest {
-    /// block size in bytes
-    fn block_size(&self) -> Option<usize>;
+    /// the digest length(in bits)
+    fn bits_len(&self) -> usize;
     
     /// write data to the Digester
     fn write(&mut self, data: &[u8]);
     
-    /// finished the digest and output to the `digest`
-    fn finish(&mut self, digest: &mut Vec<u8>);
+    /// compute the checksum for all data in the digester, the checksum will be same  
+    /// if no new data write to the digester 
+    fn checksum(&mut self, digest: &mut Vec<u8>);
     
     /// reset internal state of the Digester to the init state
     fn reset(&mut self);

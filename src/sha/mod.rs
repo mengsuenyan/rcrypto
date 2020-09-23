@@ -1,4 +1,20 @@
-
+//! SHA(Secure Hash Algorithm
+//! 
+//! # Examples
+//! 
+//! ```Rust
+//! let cases = [
+//!     ("ebf81ddcbe5bf13aaabdc4d65354fdf2044f38a7", "Discard medicine more than two years old."),
+//! ];
+//! let mut sha1 = SHA::sha1();
+//! let mut digest = Vec::new();
+//! cases.iter().for_each(|e| {
+//!     sha1.write((e.1).as_bytes());
+//!     sha1.checksum(&mut digest);
+//!     sha1.checksum(&mut digest);
+//!     sha1.reset();
+//! });
+//! ```
 
 
 mod const_tables;

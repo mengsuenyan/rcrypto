@@ -1,4 +1,5 @@
 //! SM3 Cryptographic Hash Algorithm  
+//! 
 //! https://www.cnblogs.com/mengsuenyan/p/13183543.html  
 
 use crate::Digest;

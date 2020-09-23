@@ -1,4 +1,4 @@
-pub use crate::sha::generic::{SHA1, SHA256, SHA224, SHA384, SHA512, SHA512T224, SHA512T256, SHA512T};
+pub use crate::sha::{SHA1, SHA256, SHA224, SHA384, SHA512, SHA512T224, SHA512T256, SHA512T};
 use crate::Digest;
 
 #[derive(Clone)]

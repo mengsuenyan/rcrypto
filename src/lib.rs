@@ -16,6 +16,5 @@ pub use des::DES;
 mod md5;
 pub use md5::MD5;
 
-mod sha;
-pub use sha::{SHA, SHA512T, SHA512, SHA512T256, SHA512T224,
-              SHA1, SHA224, SHA256, SHA384};
+pub mod sha;
+pub use sha::SHA;

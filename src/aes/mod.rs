@@ -14,18 +14,18 @@
 //! cipher.decrypt(&mut dst1, vec![0xdd, 0xa9, 0x7c, 0xa4, 0x86, 0x4c, 0xdf, 0xe0, 0x6e, 0xaf, 0x70, 0xa0, 0xec, 0x0d, 0x71, 0x91].as_slice()).unwrap();
 //! ```
 
-#[cfg(not(all(rcrypto_aes = "support", rcrypto_sse2 = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
+#[cfg(not(all(rcrypto_aes = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
 mod const_tables;
 
-#[cfg(not(all(rcrypto_aes = "support", rcrypto_sse2 = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
+#[cfg(not(all(rcrypto_aes = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
 mod aes_generic;
-#[cfg(not(all(rcrypto_aes = "support", rcrypto_sse2 = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
+#[cfg(not(all(rcrypto_aes = "support", any(target_arch = "x86", target_arch = "x86_64"))))]
 pub use aes_generic::AES;
 
 
-#[cfg(all(rcrypto_aes = "support", rcrypto_sse2 = "support", any(target_arch = "x86", target_arch = "x86_64")))]
+#[cfg(all(rcrypto_aes = "support", any(target_arch = "x86", target_arch = "x86_64")))]
 mod aes_amd64;
-#[cfg(all(rcrypto_aes = "support", rcrypto_sse2 = "support", any(target_arch = "x86", target_arch = "x86_64")))]
+#[cfg(all(rcrypto_aes = "support", any(target_arch = "x86", target_arch = "x86_64")))]
 pub use aes_amd64::AES;
 
 mod aes;

@@ -18,3 +18,6 @@ pub use md5::MD5;
 
 pub mod sha;
 pub use sha::SHA;
+
+mod sm3;
+pub use sm3::SM3;

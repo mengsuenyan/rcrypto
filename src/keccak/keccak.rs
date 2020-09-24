@@ -81,7 +81,7 @@ pub struct Keccak {
     w: usize,
     l: usize,
     // the number of rounds
-    nr: usize,
+    nr: i64,
     buf0: KeccakStateArr,
     buf1: KeccakStateArr,
     // false: buf0, true: buf1
@@ -120,7 +120,7 @@ impl<'a> Drop for KeccakBufGuard<'a> {
 
 macro_rules! impl_keccak_width {
     ($W: literal, $FN: ident, $PN: ident) => {
-        pub fn $FN($PN: usize) -> Self {
+        pub fn $FN($PN: u32) -> Self {
             Self::new($W, $PN).unwrap()
         }
     };
@@ -130,7 +130,7 @@ impl Keccak {
     /// KECCAK-p[b,nr]  
     /// b means that the width of the permutation;  
     /// nr means that the number of rounds; 
-    pub fn new(b: usize, nr: usize) -> std::result::Result<Keccak, CryptoError> {
+    pub fn new(b: usize, nr: u32) -> std::result::Result<Keccak, CryptoError> {
         if KECCAK_PERMUTATION_WIDTHS.iter().fold(false, |is_checked, &e| {
             if is_checked || e == b {
                 true
@@ -138,22 +138,17 @@ impl Keccak {
                 false
             }
         }) {
-            if nr > 24 || nr < 1 {
-                Err(CryptoError::new(CryptoErrorKind::InvalidParameter, 
-                    format!("Wrong nr: {}, The nr must be less than {} and greater than 0", nr, 25)))
-            } else {
-                Ok(
-                    Self {
-                        b,
-                        nr,
-                        w: b / 25,
-                        l: (b/25).trailing_zeros() as usize,
-                        buf0: KeccakStateArr::default(),
-                        buf1: KeccakStateArr::default(),
-                        state_flag: false,
-                    }
-                )
-            }
+            Ok(
+                Self {
+                    b,
+                    nr: nr as i64,
+                    w: b / 25,
+                    l: (b/25).trailing_zeros() as usize,
+                    buf0: KeccakStateArr::default(),
+                    buf1: KeccakStateArr::default(),
+                    state_flag: false,
+                }
+            )
         } else {
             Err(CryptoError::new(CryptoErrorKind::InvalidParameter, 
                 format!("Wrong b({}), the width of the permutation must belong to the {:?}", b, KECCAK_PERMUTATION_WIDTHS)))
@@ -262,25 +257,29 @@ impl Keccak {
         }
     }
     
-    fn rc(t: usize) -> u8 {
-        if (t % 255) == 0 {
+    fn rc(t: i64) -> u8 {
+        const MODULUS: usize = 255;
+        let t = if t >= 0 {Self::minus_rem_euclid((t & 0xffffffff) as usize,0, MODULUS)}
+            else {Self::minus_rem_euclid(0, (t & 0xffffffff) as usize, MODULUS)};
+        
+        if t == 0 {
             1
         } else {
             const INIT_IDX: usize = 7;
-            let mut r = [0u8; INIT_IDX+255];
+            let mut r = [0u8; INIT_IDX+MODULUS];
             r[INIT_IDX] = 1;
-            for i in (INIT_IDX+1)..=(INIT_IDX+(t % 255)) {
+            for i in (INIT_IDX+1)..=(INIT_IDX + t) {
                 r[i] = r[i] ^ r[i-8];
                 r[i-4] = r[i-4] ^ r[i-8];
                 r[i-5] = r[i-5] ^ r[i-8];
                 r[i-6] = r[i-6] ^ r[i-8];
             }
-            r[INIT_IDX + (t % 255)]
+            r[INIT_IDX + t]
         }
     }
     
     /// step mapping: $\iota(A) \rightarrow A^'$
-    fn iota(&mut self, round_idx: usize) {
+    fn iota(&mut self, round_idx: i64) {
         let (w, l) = (self.w, self.l);
         let state_old = KeccakBufGuard::new(self);
         std::mem::drop(state_old);
@@ -288,7 +287,7 @@ impl Keccak {
         
         let mut rc = [0u8; KECCAK_Z_SIZE];
         for j in 0..l {
-            rc[(1<<j)-1] = Self::rc(j + 7 * round_idx);
+            rc[(1<<j)-1] = Self::rc((j as i64) + 7 * round_idx);
         }
         
         for z in 0..w {
@@ -297,7 +296,7 @@ impl Keccak {
     }
     
     /// the round function of the KECCAK-p[b,nr]
-    fn rnd(&mut self, round_idx: usize) {
+    fn rnd(&mut self, round_idx: i64) {
         self.theta();
         self.rho();
         self.pi();
@@ -329,7 +328,8 @@ impl Keccak {
                 format!("Wrong bytes len: {}, the byte len must be great than or equal to the {}", byte_data.len(), len)))
         } else {
             self.init_state_arr(byte_data);
-            for round_idx in (12 + 2 * self.l - self.nr)..(12 + 2 * self.l - 1) {
+            let (l, nr) = (self.l as i64, self.nr as i64);
+            for round_idx in (12 + 2 * l - nr)..(12 + 2 * l - 1) {
                 self.rnd(round_idx);
             }
             let (w, b) = (self.w, self.widths());

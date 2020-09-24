@@ -21,3 +21,6 @@ pub use sha::SHA;
 
 mod sm3;
 pub use sm3::SM3;
+
+mod keccak;
+pub use keccak::Keccak;

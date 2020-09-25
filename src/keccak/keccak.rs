@@ -24,25 +24,59 @@ struct KeccakStateArr {
 }
 
 impl KeccakStateArr {
+    /// reset state array to the initial state
+    fn reset(&mut self) {
+        self.state = [[[0; KECCAK_Z_SIZE]; KECCAK_Y_SIZE]; KECCAK_X_SIZE];
+    }
+    
     fn cvt_from_slice(&mut self, s: &[u8], w: usize) {
         self.state.iter_mut().enumerate().for_each(|(x, sheet)| {
             sheet.iter_mut().enumerate().for_each(|(y, lane)| {
                 lane.iter_mut().take(w).enumerate().for_each(|(z, e)| {
                     let idx = (w * ((KECCAK_Y_SIZE * y) + x)) + z;
-                    let (num, rom) = (idx >> 3, idx & 7);
+                    let (num, rom) = (idx >> 3, 7 - (idx & 7));
                     let tmp = s[s.len() - num - 1];
-                    *e = (tmp >> rom) & (1 << (7 - rom));
+                    *e = (tmp >> rom) & 1;
                 });
             });
         });
     }
     
-    fn finish(&self, s: &mut Vec<u8>, w: usize) {
-        s.clear();
+    fn cvt_to_slice(res: &mut Vec<u8>) {
+        let len = res.len() >> 3;
+        for i in 0..len {
+            let si = i << 3;
+            res[i] = (res[si] << 7) | (res[si+1] << 6) | (res[si+2] << 5) | (res[si+3] << 4) | (res[si+4] << 3) |
+                (res[si+5] << 2) | (res[si+6] << 1) | (res[si+7]);
+        }
         
+        let (len2, mut tmp) = (len << 3, 0);
+        for j in len2..res.len() {
+            tmp = (tmp << 1) | res[j];
+        }
+        
+        if len2 < res.len() {
+            res[len] = tmp;
+            res.truncate(len + 1);
+        } else {
+            res.truncate(len);
+        }
+    }
+    
+    fn finish(&self, s: &mut Vec<u8>, w: usize) {
         for y in 0..KECCAK_Y_SIZE {
             for x in 0..KECCAK_X_SIZE {
                 for z in 0..w {
+                    s.push(self.state[x][y][z]);
+                }
+            }
+        }
+    }
+    
+    fn finish_rev(&self, s: &mut Vec<u8>, w: usize) {
+        for y in (0..KECCAK_Y_SIZE).rev() {
+            for x in (0..KECCAK_X_SIZE).rev() {
+                for z in (0..w).rev() {
                     s.push(self.state[x][y][z]);
                 }
             }
@@ -317,6 +351,13 @@ impl Keccak {
         state.output.cvt_from_slice(byte_data, w);
     }
     
+    fn permutation_inner(&mut self) {
+        let (l, nr) = (self.l as i64, self.nr as i64);
+        for round_idx in (12 + 2 * l - nr)..(12 + 2 * l - 1) {
+            self.rnd(round_idx);
+        }
+    }
+
     /// perform the KECCAK-p[b,nr] permutation, the `byte_data.len()` must be greater than or 
     /// equal to `(self.widths() + 7) / 8`. The extra bits will be discarded when the `byte_data.len()`
     /// greater than the `(self.widths() + 7) / 8`, the bits processed from left to right in writing order 
@@ -328,15 +369,127 @@ impl Keccak {
                 format!("Wrong bytes len: {}, the byte len must be great than or equal to the {}", byte_data.len(), len)))
         } else {
             self.init_state_arr(byte_data);
-            let (l, nr) = (self.l as i64, self.nr as i64);
-            for round_idx in (12 + 2 * l - nr)..(12 + 2 * l - 1) {
-                self.rnd(round_idx);
-            }
+            
+            self.permutation_inner();
+            
             let (w, b) = (self.w, self.widths());
             let state = KeccakBufGuard::new(self);
+            results.clear();
             state.input.finish(results, w);
+            KeccakStateArr::cvt_to_slice(results);
             Ok(b)
         }
+    }
+    
+    /// Sponge[Keccak-p[b,nr], pad10*1, rate]  
+    /// `rate` must be a positive integer and strictly less than the width `self.widths()`.
+    pub fn sponge(&self, rate: usize) -> std::result::Result<KeccakSponge, CryptoError> {
+        KeccakSponge::new(self.clone(), rate)
+    }
+}
+
+
+#[derive(Clone)]
+pub struct KeccakSponge {
+    rate: usize,
+    keccak: Keccak,
+    buf: Vec<u8>,
+}
+
+impl KeccakSponge {
+    /// Sponge[Keccak-p[b,nr], pad10*1, rate]  
+    /// `rate` must be a positive integer and strictly less than the width `self.widths()`.
+    pub fn new(keccak: Keccak, rate: usize) -> Result<KeccakSponge, CryptoError> {
+        if rate > 0 || rate < keccak.widths() {
+            Ok(KeccakSponge {
+                rate,
+                keccak,
+                buf: Vec::with_capacity(rate),
+            })
+        } else {
+            Err(CryptoError::new(CryptoErrorKind::InvalidParameter,
+                                 format!("Wrong rate: {}, keccak.widths: {}, the rate must satisfy the relations: 0 < rate < keccak.widths()", rate, keccak.widths())))
+        }
+    }
+
+    /// 1 || 0^j || 1   
+    /// return j
+    #[inline]
+    fn pad(x: usize, m: usize) -> usize {
+        Keccak::minus_rem_euclid(0, m + 2, x)
+    }
+
+    /// sponge the `byte_data` from the `bits_len` to the `want_bits_len`, and output the data to the results.  
+    /// the bits processed from left to right in the writing order
+    /// 
+    /// # Panics
+    /// 
+    /// This function panics if `bits_len` greater than the `byte_data.len() * 8`
+    pub fn sponge(&mut self, byte_data: &[u8], bits_len: usize, want_bits_len: usize, results: &mut Vec<u8>) {
+        assert!(bits_len <= (byte_data.len() << 3), "bits_len must be less than or equal to the byte_data.len() * 8");
+        
+        // byte_data || 1 || 0^j || 1
+        let pad_j = Self::pad(self.rate, bits_len);
+        
+        self.buf.clear();
+        byte_data.iter().for_each(|&e| {
+            (0..8).for_each(|i| {
+                self.buf.push((e >> (7 - i)) & 1);
+            });
+        });
+        if self.buf.len() > bits_len {self.buf.truncate(bits_len);}
+        self.buf.push(1);
+        self.buf.resize(bits_len + pad_j, 0);
+        self.buf.push(1);
+        
+        let n = self.buf.len() / self.rate;
+        // let c =  self.keccak.widths() - self.rate;
+        
+        {
+            let state = KeccakBufGuard::new(&mut self.keccak);
+            state.output.reset();
+        }
+        
+        let (buf, rate, w) = (&mut self.buf, self.rate, self.keccak.w);
+        for i in 0..n {
+            {
+                let state = KeccakBufGuard::new(&mut self.keccak);
+                let start = i * self.rate;
+                state.output.state.iter_mut().zip(state.input.state.iter()).enumerate().for_each(|(x, (sheeto, sheeti))| {
+                    sheeto.iter_mut().zip(sheeti.iter()).enumerate().for_each(|(y, (laneo, lanei))| {
+                        laneo.iter_mut().take(w).zip(lanei.iter().take(w)).enumerate().for_each(|(z, (eo, &ei))| {
+                            let idx = (w * ((KECCAK_Y_SIZE * y) + x)) + z;
+                            if idx >= rate {
+                                *eo = ei ^ 0;
+                            } else {
+                                *eo = ei ^ buf[start + idx];
+                            }
+                        });
+                    });
+                });
+            }
+            
+            self.keccak.permutation_inner();
+        }
+        
+        results.clear();
+        loop {
+            {
+                let state = KeccakBufGuard::new(&mut self.keccak);
+                state.input.finish_rev(results, w);
+            }
+            results.truncate(results.len()+self.rate);
+            if want_bits_len <= results.len() {
+                results.truncate(want_bits_len);
+                break;
+            } else {
+                let state = KeccakBufGuard::new(&mut self.keccak);
+                std::mem::drop(state);
+                self.keccak.permutation_inner();
+            }
+        }
+
+        KeccakStateArr::cvt_to_slice(results);
     }
 }
 
@@ -352,6 +505,9 @@ mod tests {
             let (mut s, mut sp) = (Vec::new(), Vec::new());
             s.resize((keccak.widths() + 7) >> 3, 0);
             keccak.permutation(s.as_slice(), &mut sp).unwrap();
+            let mut sponge = keccak.sponge(b / 2).unwrap();
+            sponge.sponge(s.as_slice(), 0, 1024, &mut sp);
+            assert_eq!(1024/8, sp.len());
         }
     }
 }

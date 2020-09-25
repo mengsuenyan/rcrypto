@@ -29,3 +29,4 @@ pub mod sha3;
 pub use sha3::SHA3;
 
 mod hmac;
+pub use hmac::HMAC;

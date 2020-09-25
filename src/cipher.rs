@@ -32,3 +32,8 @@ pub trait Digest {
     /// reset internal state of the Digester to the init state
     fn reset(&mut self);
 }
+
+/// Extendable-output functions(XOFs)
+pub trait DigestXOF: Digest {
+    fn set_digest_len(&mut self, bits_len: usize);
+}

@@ -1,3 +1,3 @@
 
 mod keccak;
-pub use keccak::Keccak;
+pub use keccak::{Keccak, KeccakSponge};

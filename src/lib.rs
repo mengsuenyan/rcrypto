@@ -2,7 +2,7 @@
 extern crate rmath;
 
 mod cipher;
-pub use cipher::{Cipher, Digest};
+pub use cipher::{Cipher, Digest, DigestXOF};
 
 mod crypto_err;
 pub use crypto_err::{CryptoErrorKind, CryptoError};
@@ -23,4 +23,7 @@ mod sm3;
 pub use sm3::SM3;
 
 mod keccak;
-pub use keccak::Keccak;
+pub use keccak::{Keccak, KeccakSponge};
+
+pub mod sha3;
+pub use sha3::SHA3;

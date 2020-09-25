@@ -418,38 +418,40 @@ impl KeccakSponge {
     fn pad(x: usize, m: usize) -> usize {
         Keccak::minus_rem_euclid(0, m + 2, x)
     }
-
-    /// sponge the `byte_data` from the `bits_len` to the `want_bits_len`, and output the data to the results.  
-    /// the bits processed from left to right in the writing order
-    /// 
-    /// # Panics
-    /// 
-    /// This function panics if `bits_len` greater than the `byte_data.len() * 8`
-    pub fn sponge(&mut self, byte_data: &[u8], bits_len: usize, want_bits_len: usize, results: &mut Vec<u8>) {
-        assert!(bits_len <= (byte_data.len() << 3), "bits_len must be less than or equal to the byte_data.len() * 8");
-        
-        // byte_data || 1 || 0^j || 1
-        let pad_j = Self::pad(self.rate, bits_len);
-        
+    
+    pub(crate) fn clear_buf(&mut self) {
         self.buf.clear();
+    }
+    
+    pub(crate) fn write_to_buf(&mut self, byte_data: &[u8], bits_len: usize) {
+        let old_len = self.buf.len();
         byte_data.iter().for_each(|&e| {
             (0..8).for_each(|i| {
                 self.buf.push((e >> (7 - i)) & 1);
             });
         });
-        if self.buf.len() > bits_len {self.buf.truncate(bits_len);}
+        if (self.buf.len()-old_len) > bits_len {self.buf.truncate(old_len + bits_len);}
+    }
+    
+    /// `clear_buf`   
+    /// `write_bot_buf()` many times  
+    /// `sponge_buf`
+    pub(crate) fn sponge_buf(&mut self, want_bits_len: usize, results: &mut Vec<u8>) {
+        // byte_data || 1 || 0^j || 1
+        let bits_len = self.buf.len();
+        let pad_j = Self::pad(self.rate, bits_len);
         self.buf.push(1);
         self.buf.resize(bits_len + pad_j, 0);
         self.buf.push(1);
-        
+
         let n = self.buf.len() / self.rate;
         // let c =  self.keccak.widths() - self.rate;
-        
+
         {
             let state = KeccakBufGuard::new(&mut self.keccak);
             state.output.reset();
         }
-        
+
         let (buf, rate, w) = (&mut self.buf, self.rate, self.keccak.w);
         for i in 0..n {
             {
@@ -468,10 +470,10 @@ impl KeccakSponge {
                     });
                 });
             }
-            
+
             self.keccak.permutation_inner();
         }
-        
+
         results.clear();
         loop {
             {
@@ -490,6 +492,21 @@ impl KeccakSponge {
         }
 
         KeccakStateArr::cvt_to_slice(results);
+    }
+
+    /// sponge the `byte_data` from the `bits_len` to the `want_bits_len`, and output the data to the results.  
+    /// the bits processed from left to right in the writing order
+    /// 
+    /// # Panics
+    /// 
+    /// This function panics if `bits_len` greater than the `byte_data.len() * 8`
+    pub fn sponge(&mut self, byte_data: &[u8], bits_len: usize, want_bits_len: usize, results: &mut Vec<u8>) {
+        assert!(bits_len <= (byte_data.len() << 3), "bits_len must be less than or equal to the byte_data.len() * 8");
+        
+        self.clear_buf();
+        self.write_to_buf(byte_data, bits_len);
+        
+        self.sponge_buf(want_bits_len, results);
     }
 }
 

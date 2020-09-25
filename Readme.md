@@ -10,3 +10,4 @@ A rust cryptography library
 - [x] AES;
 - [x] DES;
 - [x] Keccak;
+- [x] SHA3;

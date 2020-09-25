@@ -115,6 +115,10 @@ impl SM3 {
 
 
 impl Digest for SM3 {
+    fn block_size(&self) -> Option<usize> {
+        Some(64)
+    }
+
     fn bits_len(&self) -> usize {
         SM3_DIGEST_WSIZE << 3
     }

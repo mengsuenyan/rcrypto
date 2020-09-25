@@ -1,16 +1,17 @@
 use std::error::Error;
 use std::fmt::{Display, Formatter, Debug};
-use crate::crypto_err::CryptoErrorKind::InvalidParameter;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum CryptoErrorKind {
     InvalidParameter,
+    NotSupportUsage,
 }
 
 impl Debug for CryptoErrorKind {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            InvalidParameter => write!(f, "{}", "InvalidParameter"),
+            CryptoErrorKind::InvalidParameter => write!(f, "{}", "InvalidParameter"),
+            CryptoErrorKind::NotSupportUsage => write!(f, "{}", "NotSupportUsage"),
         }
     }
 }

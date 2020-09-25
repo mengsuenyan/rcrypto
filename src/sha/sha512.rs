@@ -29,6 +29,10 @@ impl SHA512 {
 }
 
 impl Digest for SHA512 {
+    fn block_size(&self) -> Option<usize> {
+        Some(128)
+    }
+
     fn bits_len(&self) -> usize {
         SHA512_DIGEST_SIZE << 3
     }
@@ -156,6 +160,10 @@ impl SHA512T224 {
 macro_rules! impl_digest_for_sha512_series {
     ($S: ident, $L: ident) => {
         impl Digest for $S {
+            fn block_size(&self) -> Option<usize> {
+                Some(128)
+            }
+        
             fn bits_len(&self) -> usize {
                 $L << 3
             }
@@ -212,6 +220,10 @@ impl SHA512T {
 }
 
 impl Digest for SHA512T {
+    fn block_size(&self) -> Option<usize> {
+        Some(128)
+    }
+
     fn bits_len(&self) -> usize {
         self.bits_len
     }

@@ -19,6 +19,10 @@ pub trait Cipher {
 
 /// A trait for message digest algorithm used in the cryptography
 pub trait Digest {
+    
+    /// used for HMAC, `None` means that the digest algorithm doesn't support used in the HMAC.
+    fn block_size(&self) -> Option<usize>;
+    
     /// the digest length(in bits)
     fn bits_len(&self) -> usize;
     

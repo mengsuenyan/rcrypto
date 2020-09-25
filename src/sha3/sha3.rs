@@ -54,6 +54,15 @@ impl SHA3 {
 }
 
 impl Digest for SHA3 {
+    fn block_size(&self) -> Option<usize> {
+        match &self.sha_ {
+            SHA3Type::SHA224(x) => x.block_size(),
+            SHA3Type::SHA256(x) => x.block_size(),
+            SHA3Type::SHA384(x) => x.block_size(),
+            SHA3Type::SHA512(x) => x.block_size(),
+        }
+    }
+
     fn bits_len(&self) -> usize {
         match &self.sha_ {
             SHA3Type::SHA224(x) => x.bits_len(),
@@ -93,6 +102,7 @@ impl Digest for SHA3 {
 
 macro_rules! impl_sha3sub {
     ($Type0: ident, $SUFFIX: literal, $SUFFIX_LEN: literal, $BITS_LEN: literal) => {
+        #[derive(Clone)]
         pub struct $Type0{
             digest: Vec<u8>,
             sponge: KeccakSponge,
@@ -110,6 +120,10 @@ macro_rules! impl_sha3sub {
         }
         
         impl Digest for $Type0 {
+            fn block_size(&self) -> Option<usize> {
+                Some((1600 - ($BITS_LEN << 1)) >> 3)
+            }
+        
             fn bits_len(&self) -> usize {
                 $BITS_LEN
             }

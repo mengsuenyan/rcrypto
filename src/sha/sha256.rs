@@ -26,6 +26,10 @@ impl SHA256 {
 }
 
 impl Digest for SHA256 {
+    fn block_size(&self) -> Option<usize> {
+        Some(64)
+    }
+
     fn bits_len(&self) -> usize {
         SHA256_DIGEST_SIZE << 3
     }
@@ -113,6 +117,10 @@ impl SHA224 {
 
 
 impl Digest for SHA224 {
+    fn block_size(&self) -> Option<usize> {
+        Some(64)
+    }
+
     fn bits_len(&self) -> usize {
         SHA224_DIGEST_SIZE << 3
     }

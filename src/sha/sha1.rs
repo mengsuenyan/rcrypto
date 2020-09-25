@@ -26,6 +26,10 @@ impl SHA1 {
 }
 
 impl Digest for SHA1 {
+    fn block_size(&self) -> Option<usize> {
+        Some(64)
+    }
+
     fn bits_len(&self) -> usize {
         SHA1_DIGEST_SIZE << 3
     }

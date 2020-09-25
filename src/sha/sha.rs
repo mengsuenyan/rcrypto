@@ -75,6 +75,19 @@ impl SHA {
 }
 
 impl Digest for SHA {
+    fn block_size(&self) -> Option<usize> {
+        match &self.sha_ {
+            SHAType::SHA1(x) => x.block_size(),
+            SHAType::SHA224(x) => x.block_size(),
+            SHAType::SHA256(x) => x.block_size(),
+            SHAType::SHA384(x) => x.block_size(),
+            SHAType::SHA512(x) => x.block_size(),
+            SHAType::SHA512T224(x) => x.block_size(),
+            SHAType::SHA512T256(x) => x.block_size(),
+            SHAType::SHA512T(x) => x.block_size(),
+        }
+    }
+
     fn bits_len(&self) -> usize {
         match &self.sha_ {
             SHAType::SHA1(x) => x.bits_len(),

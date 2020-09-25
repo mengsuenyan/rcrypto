@@ -30,6 +30,10 @@ impl MD5 {
 }
 
 impl Digest for MD5 {
+    fn block_size(&self) -> Option<usize> {
+        Some(64)
+    }
+
     fn bits_len(&self) -> usize {
         MD5_DIGEST_BITS_LEN
     }

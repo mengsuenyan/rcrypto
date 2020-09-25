@@ -14,6 +14,7 @@ use crate::{KeccakSponge, Digest, Keccak, DigestXOF};
 
 macro_rules! impl_shake {
     ($Type0: ident, $SUFFIX: literal, $SUFFIX_LEN: literal, $BITS_LEN: literal) => {
+        #[derive(Clone)]
         pub struct $Type0{
             digest: Vec<u8>,
             sponge: KeccakSponge,
@@ -48,6 +49,10 @@ macro_rules! impl_shake {
         }
         
         impl Digest for $Type0 {
+            fn block_size(&self) -> Option<usize> {
+                None
+            }
+        
             fn bits_len(&self) -> usize {
                 self.want_bits_len
             }

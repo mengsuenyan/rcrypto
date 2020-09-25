@@ -41,18 +41,20 @@ impl KeccakStateArr {
             });
         });
     }
-    
+
+    /// b0b1b2b3b4b5b6b7   
+    /// hex = b7*2^7 + b6*2^6 + ... + b0*2^0   
     fn cvt_to_slice(res: &mut Vec<u8>) {
         let len = res.len() >> 3;
         for i in 0..len {
             let si = i << 3;
-            res[i] = (res[si] << 7) | (res[si+1] << 6) | (res[si+2] << 5) | (res[si+3] << 4) | (res[si+4] << 3) |
-                (res[si+5] << 2) | (res[si+6] << 1) | (res[si+7]);
+            res[i] = res[si] | (res[si+1] << 1) | (res[si+2] << 2) | (res[si+3] << 3) | (res[si+4] << 4) |
+                (res[si+5] << 5) | (res[si+6] << 6) | (res[si+7] << 7);
         }
         
         let (len2, mut tmp) = (len << 3, 0);
         for j in len2..res.len() {
-            tmp = (tmp << 1) | res[j];
+            tmp |= res[j] << (j-len2);
         }
         
         if len2 < res.len() {
@@ -67,16 +69,6 @@ impl KeccakStateArr {
         for y in 0..KECCAK_Y_SIZE {
             for x in 0..KECCAK_X_SIZE {
                 for z in 0..w {
-                    s.push(self.state[x][y][z]);
-                }
-            }
-        }
-    }
-    
-    fn finish_rev(&self, s: &mut Vec<u8>, w: usize) {
-        for y in (0..KECCAK_Y_SIZE).rev() {
-            for x in (0..KECCAK_X_SIZE).rev() {
-                for z in (0..w).rev() {
                     s.push(self.state[x][y][z]);
                 }
             }
@@ -251,7 +243,7 @@ impl Keccak {
         }
         
         let (mut x, mut y) = (1,0);
-        for t in 0..23 {
+        for t in 0..=23 {
             for z in 0..w {
                 state.output[(x, y, z)] = state.input[(x, y, Self::minus_rem_euclid(z, (t+1)*(t+2)/2, w))]
             }
@@ -315,18 +307,19 @@ impl Keccak {
     /// step mapping: $\iota(A) \rightarrow A^'$
     fn iota(&mut self, round_idx: i64) {
         let (w, l) = (self.w, self.l);
-        let state_old = KeccakBufGuard::new(self);
-        std::mem::drop(state_old);
         let state = KeccakBufGuard::new(self);
         
         let mut rc = [0u8; KECCAK_Z_SIZE];
-        for j in 0..l {
+        for j in 0..=l {
             rc[(1<<j)-1] = Self::rc((j as i64) + 7 * round_idx);
         }
         
         for z in 0..w {
-            state.output[(0,0,z)] = state.output[(0,0,z)] ^ rc[z];
+            state.input[(0,0,z)] = state.input[(0,0,z)] ^ rc[z];
         }
+        std::mem::drop(state);
+        let state = KeccakBufGuard::new(self);
+        std::mem::drop(state);
     }
     
     /// the round function of the KECCAK-p[b,nr]
@@ -353,7 +346,7 @@ impl Keccak {
     
     fn permutation_inner(&mut self) {
         let (l, nr) = (self.l as i64, self.nr as i64);
-        for round_idx in (12 + 2 * l - nr)..(12 + 2 * l - 1) {
+        for round_idx in (12 + 2 * l - nr)..=(12 + 2 * l - 1) {
             self.rnd(round_idx);
         }
     }
@@ -422,12 +415,14 @@ impl KeccakSponge {
     pub(crate) fn clear_buf(&mut self) {
         self.buf.clear();
     }
-    
+
+    /// b0b1b2b3b4b5b6b7   
+    /// hex = b7*2^7 + b6*2^6 + ... + b0*2^0   
     pub(crate) fn write_to_buf(&mut self, byte_data: &[u8], bits_len: usize) {
         let old_len = self.buf.len();
         byte_data.iter().for_each(|&e| {
             (0..8).for_each(|i| {
-                self.buf.push((e >> (7 - i)) & 1);
+                self.buf.push((e >> i) & 1);
             });
         });
         if (self.buf.len()-old_len) > bits_len {self.buf.truncate(old_len + bits_len);}
@@ -441,7 +436,7 @@ impl KeccakSponge {
         let bits_len = self.buf.len();
         let pad_j = Self::pad(self.rate, bits_len);
         self.buf.push(1);
-        self.buf.resize(bits_len + pad_j, 0);
+        self.buf.resize(bits_len + 1 + pad_j, 0);
         self.buf.push(1);
 
         let n = self.buf.len() / self.rate;
@@ -476,11 +471,15 @@ impl KeccakSponge {
 
         results.clear();
         loop {
+            let old_len = results.len();
             {
                 let state = KeccakBufGuard::new(&mut self.keccak);
-                state.input.finish_rev(results, w);
+                state.input.finish(results, w);
             }
-            results.truncate(results.len()+self.rate);
+
+            // Z = Z || Trunc_r(S)
+            results.truncate(old_len+self.rate);
+
             if want_bits_len <= results.len() {
                 results.truncate(want_bits_len);
                 break;

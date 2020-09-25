@@ -26,7 +26,7 @@ pub trait Digest {
     /// the digest length(in bits)
     fn bits_len(&self) -> usize;
     
-    /// write data to the Digester
+    /// write byte data to the Digester
     fn write(&mut self, data: &[u8]);
     
     /// compute the checksum for all data in the digester, the checksum will be same  

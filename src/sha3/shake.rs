@@ -30,19 +30,19 @@ macro_rules! impl_shake {
                     sponge: Keccak::new(1600, 24).unwrap().sponge(1600-($BITS_LEN << 1)).unwrap(),
                     digest: Vec::with_capacity(64),
                     want_bits_len: digest_bits_len,
-                    suffix: [$SUFFIX << (7 - $SUFFIX_LEN)],
+                    suffix: [$SUFFIX],
                     suffix_len: $SUFFIX_LEN,
                     is_checked: false,
                 }
             }
             
             pub fn is_raw_shake(&self) -> bool {
-                self.suffix == [0b11u8 << 5]
+                self.suffix == [0b11u8]
             }
             
             pub fn to_raw_shake(self) -> Self {
                 let mut tmp = self;
-                tmp.suffix = [0b11u8 << 5];
+                tmp.suffix = [0b11u8];
                 tmp.suffix_len = 2;
                 tmp
             }

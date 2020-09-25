@@ -51,6 +51,16 @@ impl SHA3 {
             sha_: SHA3Type::SHA512(SHA512::new())
         }
     }
+
+    /// only the least bit effective
+    pub fn write_bit(&mut self, bit: u8) {
+        match &mut self.sha_ {
+            SHA3Type::SHA224(x) => x.write_bit(bit),
+            SHA3Type::SHA256(x) => x.write_bit(bit),
+            SHA3Type::SHA384(x) => x.write_bit(bit),
+            SHA3Type::SHA512(x) => x.write_bit(bit),
+        }
+    }
 }
 
 impl Digest for SHA3 {
@@ -117,6 +127,15 @@ macro_rules! impl_sha3sub {
                     is_checked: false,
                 }
             }
+            
+            /// only the least bit effective
+            pub fn write_bit(&mut self, bit: u8) {
+                let mut data = [0u8;1];
+                data[0] = bit;
+                self.sponge.write_to_buf(data.as_ref(), 1);
+                
+                self.is_checked = false;
+            }
         }
         
         impl Digest for $Type0 {
@@ -137,7 +156,7 @@ macro_rules! impl_sha3sub {
             fn checksum(&mut self, digest: &mut Vec<u8>) {
                 if !self.is_checked {
                     const SUFFIX_BITS_LEN: usize = $SUFFIX_LEN;
-                    const SUFFIX: [u8;1] = [$SUFFIX << (7 - SUFFIX_BITS_LEN)];
+                    const SUFFIX: [u8;1] = [$SUFFIX];
                     self.sponge.write_to_buf(&SUFFIX, SUFFIX_BITS_LEN);
                     self.sponge.sponge_buf(self.bits_len(), &mut self.digest);
                     
@@ -158,8 +177,15 @@ macro_rules! impl_sha3sub {
     };
 }
 
-impl_sha3sub!(SHA224, 0b01, 2, 224);
-impl_sha3sub!(SHA256, 0b01, 2, 256);
-impl_sha3sub!(SHA384, 0b01, 2, 384);
-impl_sha3sub!(SHA512, 0b01, 2, 512);
+// b0b1b2b3b4b5b6b7   
+// hex = b7*2^7 + b6*2^6 + ... + b0*2^0   
+// M || 0b01   
+// 所以调了了顺序0b10
+impl_sha3sub!(SHA224, 0b10, 2, 224);
+impl_sha3sub!(SHA256, 0b10, 2, 256);
+impl_sha3sub!(SHA384, 0b10, 2, 384);
+impl_sha3sub!(SHA512, 0b10, 2, 512);
         
+
+#[cfg(test)]
+mod tests;

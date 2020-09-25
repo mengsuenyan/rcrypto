@@ -11,3 +11,4 @@ A rust cryptography library
 - [x] DES;
 - [x] Keccak;
 - [x] SHA3;
+- [x] HMAC;

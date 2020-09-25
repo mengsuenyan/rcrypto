@@ -1,6 +1,4 @@
 
-extern crate rmath;
-
 mod cipher;
 pub use cipher::{Cipher, Digest, DigestXOF};
 

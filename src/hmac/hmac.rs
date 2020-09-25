@@ -16,6 +16,7 @@ pub struct HMAC<D: Digest> {
     k0_i: Vec<u8>,
     k0_o: Vec<u8>,
     buf: Vec<u8>,
+    is_checked: bool,
 }
 
 impl<D: Digest> HMAC<D> {
@@ -54,6 +55,7 @@ impl<D: Digest> HMAC<D> {
                             k0_i,
                             k0_o,
                             buf: Vec::with_capacity(b),
+                            is_checked: false,
                         }
                     )
                 }
@@ -68,26 +70,80 @@ impl<D: Digest> HMAC<D> {
     /// set new `key`
     pub fn set_key(&mut self, key: Vec<u8>) {
         Self::generate_k0_io(key, self.df.block_size().unwrap(), &mut self.df, &mut self.k0_i, &mut self.k0_o);
+        self.reset();
     }
     
-    pub fn mac(&mut self, text: &[u8], results: &mut Vec<u8>) {
-        text.iter().for_each(|&e| {
-            self.k0_i.push(e);
-        });
-        
-        self.df.reset();
-        self.df.write(self.k0_i.as_slice());
-        self.df.checksum(&mut self.buf);
-        
-        for &e in self.buf.iter() {
-            self.k0_o.push(e);
+    // pub fn mac(&mut self, text: &[u8], results: &mut Vec<u8>) {
+    //     self.k0_o.truncate(self.df.block_size().unwrap());
+    //     self.k0_i.truncate(self.df.block_size().unwrap());
+    //     
+    //     text.iter().for_each(|&e| {
+    //         self.k0_i.push(e);
+    //     });
+    //     
+    //     self.df.reset();
+    //     self.df.write(self.k0_i.as_slice());
+    //     self.df.checksum(&mut self.buf);
+    //     
+    //     for &e in self.buf.iter() {
+    //         self.k0_o.push(e);
+    //     }
+    //     
+    //     self.df.reset();
+    //     self.df.write(self.k0_o.as_slice());
+    //     self.df.checksum(results);
+    // }
+}
+
+impl<D: Digest>  Digest for HMAC<D> {
+    fn block_size(&self) -> Option<usize> {
+        self.df.block_size()
+    }
+
+    fn bits_len(&self) -> usize {
+        self.df.bits_len()
+    }
+
+    fn write(&mut self, data: &[u8]) {
+        if self.is_checked {
+            self.k0_i.truncate(self.df.block_size().unwrap());
+            self.k0_o.truncate(self.df.block_size().unwrap());
         }
         
-        self.df.reset();
-        self.df.write(self.k0_o.as_slice());
-        self.df.checksum(results);
+        data.iter().for_each(|&e| {
+            self.k0_i.push(e)
+        });
         
-        self.k0_o.truncate(self.df.block_size().unwrap());
+        self.is_checked = false;
+    }
+
+    fn checksum(&mut self, digest: &mut Vec<u8>) {
+        if !self.is_checked {
+            self.df.reset();
+            self.df.write(self.k0_i.as_slice());
+            self.df.checksum(&mut self.buf);
+
+            for &e in self.buf.iter() {
+                self.k0_o.push(e);
+            }
+
+            self.df.reset();
+            self.df.write(self.k0_o.as_slice());
+            self.df.checksum(digest);
+            self.is_checked = true;
+        } else {
+            self.df.checksum(digest);
+        }
+    }
+
+    fn reset(&mut self) {
+        self.is_checked = false;
         self.k0_i.truncate(self.df.block_size().unwrap());
+        self.k0_o.truncate(self.df.block_size().unwrap());
+        self.buf.clear();
+        self.df.reset();
     }
 }
+
+#[cfg(test)]
+mod tests;

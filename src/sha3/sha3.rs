@@ -15,6 +15,7 @@
 
 use crate::{KeccakSponge, Digest, Keccak};
 
+#[derive(Clone)]
 enum SHA3Type {
     SHA224(SHA224),
     SHA256(SHA256),
@@ -22,6 +23,7 @@ enum SHA3Type {
     SHA512(SHA512),
 }
 
+#[derive(Clone)]
 pub struct SHA3 {
     sha_: SHA3Type,
 }

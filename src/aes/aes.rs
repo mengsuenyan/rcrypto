@@ -69,7 +69,7 @@ impl Cipher for AES {
                 Ok(dst.len())
             },
             _ => Err(CryptoError::new(CryptoErrorKind::InvalidParameter,
-                                      format!("Wrong ciphertext length: {}, the plaintext block length(in bytes) only can be {}",
+                                      format!("Wrong ciphertext length: {}, the ciphertext block length(in bytes) only can be {}",
                                               cipher_block.len(), AES_BLOCK_SIZE)))
         }
     }

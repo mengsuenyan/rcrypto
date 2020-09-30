@@ -5,6 +5,8 @@ use std::fmt::{Display, Formatter, Debug};
 pub enum CryptoErrorKind {
     InvalidParameter,
     NotSupportUsage,
+    RandError,
+    UnpaddingNotMatch,
 }
 
 impl Debug for CryptoErrorKind {
@@ -12,6 +14,8 @@ impl Debug for CryptoErrorKind {
         match self {
             CryptoErrorKind::InvalidParameter => write!(f, "{}", "InvalidParameter"),
             CryptoErrorKind::NotSupportUsage => write!(f, "{}", "NotSupportUsage"),
+            CryptoErrorKind::RandError => write!(f, "{}", "RandError"),
+            CryptoErrorKind::UnpaddingNotMatch => write!(f, "{}", "UnpaddingNotMatch"),
         }
     }
 }

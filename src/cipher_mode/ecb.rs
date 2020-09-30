@@ -144,34 +144,6 @@ impl<C, P> Clone for ECB<C, P>
     }
 }
 
-macro_rules! impl_cipher {
-    ($Type0: ident) => {
-        impl<C, P> Cipher for $Type0<C, P>
-            where C: Cipher, P: 'static + Padding {
-            fn block_size(&self) -> Option<usize> {
-                self.ecb.block_size()
-            }
-        
-            fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<usize, CryptoError> {
-                self.ecb.encrypt(dst, plaintext_block)
-            }
-        
-            fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<usize, CryptoError> {
-                self.ecb.decrypt(dst, cipher_block)
-            }
-        }
-        
-        impl<C, P> $Type0<C, P> 
-            where C: Cipher, P: 'static + Padding {
-            
-            pub fn reset(&mut self) {
-                self.data.clear();
-                self.pond.clear();
-            }
-        }
-    };
-}
-
 pub struct ECBEncrypt<C, P> {
     ecb: ECB<C, P>,
     data: Vec<u8>,
@@ -179,6 +151,7 @@ pub struct ECBEncrypt<C, P> {
 }
 
 impl_cipher!(ECBEncrypt);
+impl_fn_reset!(ECBEncrypt);
 
 impl<C, P> EncryptStream for ECBEncrypt<C, P> 
     where C: Cipher, P: 'static + Padding {
@@ -254,6 +227,7 @@ pub struct ECBDecrypt<C, P> {
 }
 
 impl_cipher!(ECBDecrypt);
+impl_fn_reset!(ECBDecrypt);
 
 impl<C, P> DecryptStream for ECBDecrypt<C, P> 
     where C: Cipher, P: 'static + Padding {

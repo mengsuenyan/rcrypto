@@ -1,4 +1,6 @@
 
+extern crate rmath;
+
 mod cipher;
 pub use cipher::{Cipher, Digest, DigestXOF};
 
@@ -28,3 +30,5 @@ pub use sha3::SHA3;
 
 mod hmac;
 pub use hmac::HMAC;
+
+pub mod cipher_mode;

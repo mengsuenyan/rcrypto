@@ -74,11 +74,13 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
                 }
             }
         }
-        
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            let mut tmp= data.to_vec();
-            self.padding.padding(&mut tmp);
 
+        let mut tmp= data.to_vec();
+        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
+            self.padding.padding(&mut tmp);
+        }
+
+        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() || !tmp.is_empty() {
             match self.cipher.encrypt(txt, tmp.as_slice()) {
                 Ok(_) => {
                     dst.append(txt);
@@ -120,12 +122,7 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
         }
 
         if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            match self.padding.unpadding(dst) {
-                Ok(_) => {
-                    Ok(dst.len())
-                },
-                Err(e) => Err(e),
-            }
+            self.padding.unpadding(dst)
         } else {
             Ok(dst.len())
         }
@@ -203,16 +200,20 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
     }
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
-        self.ecb.padding.padding(&mut self.data);
+        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
+            self.ecb.padding.padding(&mut self.data);
+        }
         
-        let txt = self.ecb.get_buf();
-        match self.ecb.cipher.encrypt(txt, self.data.as_slice()) {
-            Ok(_) => {
-                self.pond.append(txt);
-                self.data.clear();
-            },
-            Err(e) => {
-                return Err(e);
+        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() || !self.data.is_empty() {
+            let txt = self.ecb.get_buf();
+            match self.ecb.cipher.encrypt(txt, self.data.as_slice()) {
+                Ok(_) => {
+                    self.pond.append(txt);
+                    self.data.clear();
+                },
+                Err(e) => {
+                    return Err(e);
+                }
             }
         }
 
@@ -255,6 +256,9 @@ impl<C, P> DecryptStream for ECBDecrypt<C, P>
             }
         }
 
+        let mut data = data.to_vec();
+        self.data.clear();
+        self.data.append(&mut data);
         Ok(Pond::new(&mut self.pond, false))
     }
 
@@ -263,16 +267,16 @@ impl<C, P> DecryptStream for ECBDecrypt<C, P>
         match self.ecb.cipher.decrypt(txt, self.data.as_slice()) {
             Ok(_) => {
                 if let Err(e) = self.ecb.padding.unpadding(txt) {
-                    return Err(e);
+                    Err(e)
+                } else {
+                    self.data.clear();
+                    Ok(Pond::new(&mut self.pond, true))
                 }
             },
             Err(e) => {
-                return Err(e);
+                Err(e)
             }
         }
-
-        self.data.clear();
-        Ok(Pond::new(&mut self.pond, true))
     }
 }
 

@@ -1,7 +1,7 @@
 use crate::{CryptoError, Cipher, CryptoErrorKind};
 use std::marker::PhantomData;
 
-pub trait InitialVec {
+pub trait InitialVec<C: Cipher> {
     fn initial_vec(&mut self, iv: &mut Vec<u8>) -> std::result::Result<(), CryptoError>;
 }
 
@@ -22,7 +22,7 @@ impl<C: Cipher, R: rmath::rand::Source<u32>> DefaultInitialVec<C, R> {
     }
 }
 
-impl<C: Cipher, R: rmath::rand::Source<u32>> InitialVec for DefaultInitialVec<C, R> {
+impl<C: Cipher, R: rmath::rand::Source<u32>> InitialVec<C> for DefaultInitialVec<C, R> {
     
     fn initial_vec(&mut self, iv: &mut Vec<u8>) -> Result<(), CryptoError> {
         let len = (self.block_size + 3) >> 2;

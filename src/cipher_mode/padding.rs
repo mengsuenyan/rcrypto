@@ -6,7 +6,7 @@ pub trait Padding {
     fn padding(&self, buf: &mut Vec<u8>);
     
     /// unpadding the `buf` data in place, the content will not be changed if error occurred
-    fn unpadding(&self, buf: &mut Vec<u8>) -> Result<(), CryptoError>;
+    fn unpadding(&self, buf: &mut Vec<u8>) -> Result<usize, CryptoError>;
 }
 
 /// append a single bit 1 and then append some bit 0;
@@ -38,14 +38,14 @@ impl<C: Cipher> Padding for DefaultPadding<C> {
         }
     }
 
-    fn unpadding(&self, buf: &mut Vec<u8>) -> Result<(), CryptoError> {
+    fn unpadding(&self, buf: &mut Vec<u8>) -> Result<usize, CryptoError> {
         let mut len = 0;
         for &e in buf.iter().rev() {
             if e == 0 {
                 len += 1;
             } else if e == 0x80 {
                 buf.truncate(buf.len() - len - 1);
-                return Ok(());
+                return Ok(buf.len());
             }
         }
         
@@ -67,7 +67,7 @@ impl Padding for EmptyPadding {
     fn padding(&self, _buf: &mut Vec<u8>) {
     }
 
-    fn unpadding(&self, _buf: &mut Vec<u8>) -> Result<(), CryptoError> {
-        Ok(())
+    fn unpadding(&self, buf: &mut Vec<u8>) -> Result<usize, CryptoError> {
+        Ok(buf.len())
     }
 }

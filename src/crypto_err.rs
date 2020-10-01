@@ -7,6 +7,7 @@ pub enum CryptoErrorKind {
     NotSupportUsage,
     RandError,
     UnpaddingNotMatch,
+    InnerErr,
 }
 
 impl Debug for CryptoErrorKind {
@@ -16,6 +17,7 @@ impl Debug for CryptoErrorKind {
             CryptoErrorKind::NotSupportUsage => write!(f, "{}", "NotSupportUsage"),
             CryptoErrorKind::RandError => write!(f, "{}", "RandError"),
             CryptoErrorKind::UnpaddingNotMatch => write!(f, "{}", "UnpaddingNotMatch"),
+            CryptoErrorKind::InnerErr => write!(f, "{}", "InnerError"),
         }
     }
 }

@@ -12,6 +12,7 @@ use std::cell::Cell;
 use crate::{Cipher, CryptoError, CryptoErrorKind};
 use crate::cipher_mode::{Padding, InitialVec, EmptyPadding, EncryptStream, Pond, DecryptStream};
 use std::any::TypeId;
+use std::marker::PhantomData;
 
 pub struct CBC<C, P, IV> {
     buf: Cell<Vec<u8>>,
@@ -19,6 +20,7 @@ pub struct CBC<C, P, IV> {
     cipher: C,
     padding: P,
     iv: IV,
+    phd: PhantomData<*const u8>,
 }
 
 impl<C, P, IV> CBC<C, P, IV> 
@@ -42,6 +44,7 @@ impl<C, P, IV> CBC<C, P, IV>
             cipher: c,
             padding: p,
             iv,
+            phd: PhantomData,
         })
     }
     
@@ -50,7 +53,7 @@ impl<C, P, IV> CBC<C, P, IV>
         let block_len = self.cipher.block_size().unwrap_or(1);
         match self.iv.initial_vec(&mut self.cur_iv) {
             Ok(_) => {
-                if self.cipher.block_size().is_some() && block_len == self.cur_iv.len() {
+                if self.cipher.block_size().is_some() && block_len != self.cur_iv.len() {
                     Err(CryptoError::new(CryptoErrorKind::InnerErr,
                                                 format!("Wrong IV len: {}, The IV len must be the {} in bytes", self.cur_iv.len(), block_len)))
                 } else {
@@ -65,10 +68,17 @@ impl<C, P, IV> CBC<C, P, IV>
         self.cur_iv.clone()
     }
     
-    pub fn set_iv(&mut self, iv: Vec<u8>) {
-        let mut iv = iv;
-        self.cur_iv.clear();
-        self.cur_iv.append(&mut iv);
+    pub fn set_iv(&mut self, iv: Vec<u8>) -> Result<(), CryptoError> {
+        let block_len = self.cipher.block_size().unwrap_or(1);
+        if self.cipher.block_size().is_some() && iv.len() != block_len {
+            Err(CryptoError::new(CryptoErrorKind::InvalidParameter,
+                                 format!("Wrong IV len: {}, the IV len must be the {} in bytes", self.cur_iv.len(), block_len)))
+        } else {
+            let mut iv = iv;
+            self.cur_iv.clear();
+            self.cur_iv.append(&mut iv);
+            Ok(())
+        }
     }
     
     pub fn encrypt_stream(self) -> CBCEncrypt<C, P, IV> {
@@ -202,6 +212,7 @@ impl<C, P, IV> Clone for CBC<C, P, IV>
             cipher: self.cipher.clone(),
             padding: self.padding.clone(),
             iv: self.iv.clone(),
+            phd: PhantomData,
         }
     }
 }

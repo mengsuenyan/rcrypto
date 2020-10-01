@@ -80,19 +80,21 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
             self.padding.padding(&mut tmp);
         }
 
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() || !tmp.is_empty() {
-            match self.cipher.encrypt(txt, tmp.as_slice()) {
+        let mut data = tmp.as_slice();
+        while !data.is_empty() {
+            let tmp = &data[..block_size];
+            match self.cipher.encrypt(txt, tmp) {
                 Ok(_) => {
                     dst.append(txt);
-                    Ok(dst.len())
+                    data = &data[block_size..];
                 },
                 Err(e) => {
-                    Err(e)
-                }
+                    return Err(e);
+                },
             }
-        } else {
-            Ok(dst.len())
         }
+
+        Ok(dst.len())
     }
 
     fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<usize, CryptoError> {
@@ -147,7 +149,7 @@ pub struct ECBEncrypt<C, P> {
     pond: Vec<u8>,
 }
 
-impl_cipher!(ECBEncrypt);
+impl_cipher!(ECBEncrypt, ecb);
 impl_fn_reset!(ECBEncrypt);
 
 impl<C, P> EncryptStream for ECBEncrypt<C, P> 
@@ -204,12 +206,15 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
             self.ecb.padding.padding(&mut self.data);
         }
         
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() || !self.data.is_empty() {
-            let txt = self.ecb.get_buf();
-            match self.ecb.cipher.encrypt(txt, self.data.as_slice()) {
+        let block_len = self.ecb.cipher.block_size().unwrap_or(1);
+        let txt = self.ecb.get_buf();
+        let mut data = self.data.as_slice();
+        while !data.is_empty() {
+            let tmp = &data[..block_len];
+            match self.ecb.cipher.encrypt(txt, tmp) {
                 Ok(_) => {
                     self.pond.append(txt);
-                    self.data.clear();
+                    data = &data[block_len..];
                 },
                 Err(e) => {
                     return Err(e);
@@ -217,6 +222,7 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
             }
         }
 
+        self.data.clear();
         Ok(Pond::new(&mut self.pond, true))
     }
 }
@@ -227,7 +233,7 @@ pub struct ECBDecrypt<C, P> {
     pond: Vec<u8>,
 }
 
-impl_cipher!(ECBDecrypt);
+impl_cipher!(ECBDecrypt, ecb);
 impl_fn_reset!(ECBDecrypt);
 
 impl<C, P> DecryptStream for ECBDecrypt<C, P> 
@@ -270,6 +276,7 @@ impl<C, P> DecryptStream for ECBDecrypt<C, P>
                     Err(e)
                 } else {
                     self.data.clear();
+                    self.pond.append(txt);
                     Ok(Pond::new(&mut self.pond, true))
                 }
             },

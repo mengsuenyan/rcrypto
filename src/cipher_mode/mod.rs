@@ -14,3 +14,6 @@ pub use ecb::{ECB, ECBDecrypt, ECBEncrypt};
 
 mod initial_vec;
 pub use initial_vec::{InitialVec, DefaultInitialVec};
+
+mod cbc;
+pub use cbc::{CBC, CBCEncrypt, CBCDecrypt};

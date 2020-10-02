@@ -26,3 +26,6 @@ pub use ofb::{OFB, OFBEncrypt, OFBDecrypt};
 
 mod counter;
 pub use counter::{Counter, DefaultCounter};
+
+mod ctr;
+pub use ctr::{CTR, CTREncrypt, CTRDecrypt};

@@ -32,3 +32,5 @@ mod hmac;
 pub use hmac::HMAC;
 
 pub mod cipher_mode;
+
+mod dsa;

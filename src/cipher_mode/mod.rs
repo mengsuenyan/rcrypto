@@ -17,3 +17,6 @@ pub use initial_vec::{InitialVec, DefaultInitialVec};
 
 mod cbc;
 pub use cbc::{CBC, CBCEncrypt, CBCDecrypt};
+
+mod cfb;
+pub use cfb::{CFB};

@@ -11,7 +11,7 @@ mod aes;
 pub use aes::AES;
 
 mod des;
-pub use des::DES;
+pub use des::{DES, TDES};
 
 mod md5;
 pub use md5::MD5;

@@ -24,5 +24,7 @@
 
 mod des;
 mod const_tables;
+mod tdes;
 
 pub use des::DES;
+pub use tdes::TDES;

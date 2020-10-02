@@ -53,9 +53,9 @@ impl Counter for DefaultCounter {
         } else {
             //note: here is not to handle the overflowing
             let v = self.cur_val.as_mut().unwrap();
-            let mut c = 0;
+            let mut c = 1;
             v.iter_mut().rev().for_each(|a| {
-                let (x, y) = (*a).overflowing_add(1 + c);
+                let (x, y) = (*a).overflowing_add(c);
                 c = if y {1} else {0};
                 *a = x;
             });

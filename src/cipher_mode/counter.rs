@@ -12,11 +12,20 @@ pub trait Counter {
     fn bits_len(&self) -> usize;
 }
 
-#[derive(Clone)]
 pub struct DefaultCounter {
     bits_len: usize,
     initial_val: Vec<u8>,
     cur_val: Option<Vec<u8>>,
+}
+
+impl Clone for DefaultCounter {
+    fn clone(&self) -> Self {
+        Self {
+            bits_len: self.bits_len,
+            initial_val: self.initial_val.clone(),
+            cur_val: None,
+        }
+    }
 }
 
 impl DefaultCounter {

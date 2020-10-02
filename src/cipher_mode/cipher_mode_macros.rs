@@ -62,3 +62,35 @@ macro_rules! impl_fn_reset_iv {
     };
 }
 
+macro_rules! impl_cipher_ofb {
+    ($Type0: ident, $INS: ident) => {
+        impl<C, IV> Cipher for $Type0<C, IV>
+            where C: Cipher, IV: InitialVec<C> {
+            fn block_size(&self) -> Option<usize> {
+                self.$INS.block_size()
+            }
+        
+            fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<usize, CryptoError> {
+                self.$INS.encrypt(dst, plaintext_block)
+            }
+        
+            fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<usize, CryptoError> {
+                self.$INS.decrypt(dst, cipher_block)
+            }
+        }
+    };
+}
+
+macro_rules! impl_fn_reset_ofb {
+    ($Type0: ident) => {
+        impl<C, IV> $Type0<C, IV> 
+            where C: Cipher, IV: InitialVec<C> {
+            
+            pub fn reset(&mut self) {
+                self.data.clear();
+                self.pond.clear();
+            }
+        }
+    };
+}
+

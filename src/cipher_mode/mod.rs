@@ -19,4 +19,7 @@ mod cbc;
 pub use cbc::{CBC, CBCEncrypt, CBCDecrypt};
 
 mod cfb;
-pub use cfb::{CFB};
+pub use cfb::{CFB, CFBEncrypt, CFBDecrypt};
+
+mod ofb;
+pub use ofb::{OFB, OFBEncrypt, OFBDecrypt};

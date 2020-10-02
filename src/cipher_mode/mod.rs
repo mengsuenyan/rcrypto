@@ -23,3 +23,6 @@ pub use cfb::{CFB, CFBEncrypt, CFBDecrypt};
 
 mod ofb;
 pub use ofb::{OFB, OFBEncrypt, OFBDecrypt};
+
+mod counter;
+pub use counter::{Counter, DefaultCounter};

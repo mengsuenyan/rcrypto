@@ -33,4 +33,9 @@ pub use hmac::HMAC;
 
 pub mod cipher_mode;
 
-mod dsa;
+mod cmac;
+pub use cmac::CMAC;
+
+mod kdf;
+
+mod dss;

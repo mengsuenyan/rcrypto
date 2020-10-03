@@ -14,3 +14,4 @@ A rust cryptography library
 - [x] HMAC;
 - [ ] BlockCipherMode;
 - [ ] TDES;
+- [ ] CMAC;

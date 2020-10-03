@@ -60,7 +60,7 @@ impl<C: 'static + Cipher> CMAC<C> {
     pub fn new(c: C) -> Result<Self, CryptoError> {
         let (b, rb) = if TypeId::of::<C>() == TypeId::of::<AES>() {
             (c.block_size().unwrap(), RB_128.as_ref())
-        } else if TypeId::of::<C>() == TypeId::of::<DES>() || TypeId::of::<C>() == TypeId::of::<DES>() {
+        } else if TypeId::of::<C>() == TypeId::of::<DES>() || TypeId::of::<C>() == TypeId::of::<TDES>() {
             (c.block_size().unwrap(), RB_64.as_ref())
         } else {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The CMAC current only support AES/DES/TDES."));
@@ -89,7 +89,7 @@ impl<C: Cipher> Digest for CMAC<C> {
         self.cipher.block_size().unwrap() << 3
     }
 
-    fn write(&mut self, mut data: &[u8]) {
+    fn write(&mut self, data: &[u8]) {
         let b = self.block_size().unwrap();
         if self.is_check {
             self.nonce.clear();

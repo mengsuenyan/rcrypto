@@ -33,6 +33,9 @@ pub use hmac::HMAC;
 
 pub mod cipher_mode;
 
+mod zuc;
+pub use zuc::{ZUC, ZUCCipher, ZUCMac};
+
 mod cmac;
 pub use cmac::CMAC;
 

@@ -2,11 +2,25 @@ use crate::{Cipher, CryptoError, CryptoErrorKind};
 use std::cell::Cell;
 use crate::zuc::ZUC;
 
+/// ZUC stream cipher algorithm   
+/// GM/T 0001-2012
+/// 
 pub struct ZUCCipher {
     zuc: Cell<ZUC>,
     ck: [u8; 16],
     iv: [u8; 16],
     key: Cell<Vec<u8>>,
+}
+
+impl Clone for ZUCCipher {
+    fn clone(&self) -> Self {
+        Self {
+            zuc: Cell::new(self.get_zuc().clone()),
+            ck: self.ck.clone(),
+            iv: self.iv.clone(),
+            key: Cell::new(self.get_key().clone()),
+        }
+    }
 }
 
 impl ZUCCipher {
@@ -47,6 +61,7 @@ impl ZUCCipher {
         }
     }
     
+    /// this will reset to the initialization status
     pub fn reset(&mut self) {
         self.zuc.get_mut().set_slice(self.ck.as_ref(), self.iv.as_ref()).unwrap();
         self.key.get_mut().clear();

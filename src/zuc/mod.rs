@@ -13,3 +13,6 @@ pub use zuc_cipher::ZUCCipher;
 
 mod zuc_mac;
 pub use zuc_mac::ZUCMac;
+
+#[cfg(test)]
+mod zuc_test;

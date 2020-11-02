@@ -1,6 +1,7 @@
 use crate::zuc::ZUC;
 use crate::{CryptoError, CryptoErrorKind, Digest};
 
+#[derive(Clone)]
 pub struct ZUCMac {
     zuc: ZUC,
     ck: [u8; 16],

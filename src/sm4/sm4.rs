@@ -8,6 +8,14 @@ pub struct SM4 {
     rk: Cell<[u32; 32]>,
 }
 
+impl Clone for SM4 {
+    fn clone(&self) -> Self {
+        SM4 {
+            rk: Cell::new(self.get_rk_ref().clone()),
+        }
+    }
+}
+
 impl SM4 {
     #[inline]
     fn f_tau(x: u32) -> u32 {

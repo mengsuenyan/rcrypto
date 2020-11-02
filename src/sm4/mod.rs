@@ -8,3 +8,6 @@ mod sm4_const_tables;
 mod  sm4;
 
 pub use sm4::SM4;
+
+#[cfg(test)]
+mod sm4_test;

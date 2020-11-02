@@ -68,7 +68,7 @@ impl SM4 {
         }
     }
     
-    pub fn new(key: [u8; 32]) -> SM4 {
+    pub fn new(key: [u8; 16]) -> SM4 {
         Self::from_slice(key.as_ref()).unwrap()
     }
     
@@ -91,7 +91,7 @@ impl SM4 {
         x[3] = Self::u8_to_u32(data[12], data[13], data[14], data[15]);
 
         for i in 0..32 {
-            x[i] = Self::round_f(x[i], x[i+1], x[i+2], x[i+3], rk(self.get_rk_ref(), i));
+            x[i + 4] = Self::round_f(x[i], x[i+1], x[i+2], x[i+3], rk(self.get_rk_ref(), i));
         }
         dst.clear();
         for i in (32..=35).rev() {

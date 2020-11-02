@@ -16,4 +16,4 @@ A rust cryptography library
 - [ ] TDES;
 - [ ] CMAC;
 - [x] ZUC/ZUCCipher/ZUCMac;
-- [ ] SM4;
+- [x] SM4;

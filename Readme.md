@@ -15,5 +15,5 @@ A rust cryptography library
 - [ ] BlockCipherMode;
 - [ ] TDES;
 - [ ] CMAC;
-- [ ] ZUC/ZUCCipher/ZUCMac;
+- [x] ZUC/ZUCCipher/ZUCMac;
 - [ ] SM4;

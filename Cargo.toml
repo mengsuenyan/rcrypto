@@ -1,6 +1,6 @@
 [package]
 name = "rcrypto"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["mengsuenyan <mengsuenyan@163.com>"]
 edition = "2018"
 license = "Apache-2.0"
@@ -13,6 +13,6 @@ documentation = "https://docs.rs/rcrypto/0.1.0/rcrypto/"
 
 [dependencies]
 
-rmath = "0.1.0"
+rmath = "0.1.1"
 
 

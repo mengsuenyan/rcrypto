@@ -4,8 +4,8 @@ use crate::{CryptoError, CryptoErrorKind};
 
 pub trait Counter {
     
-    /// reset the initial value, and the bits length of output vec
-    fn reset(&mut self, initial_val: Vec<u8>, bits_len: usize);
+    /// reset to the initial status
+    fn reset(&mut self);
     
     fn next(&mut self) -> Option<&Vec<u8>>;
     
@@ -46,10 +46,8 @@ impl DefaultCounter {
 }
 
 impl Counter for DefaultCounter {
-    fn reset(&mut self, mut initial_val: Vec<u8>, bits_len: usize) {
-        self.bits_len = bits_len;
-        self.initial_val.clear();
-        self.initial_val.append(&mut initial_val);
+    fn reset(&mut self) {
+        self.cur_val.take();
     }
 
     fn next(&mut self) -> Option<&Vec<u8>> {

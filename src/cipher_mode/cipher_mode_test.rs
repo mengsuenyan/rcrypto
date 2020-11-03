@@ -1,6 +1,57 @@
 use crate::cipher_mode::{ECB, EmptyPadding, EncryptStream, DecryptStream, CBC, DefaultInitialVec, CFB, OFB, DefaultCounter, CTR};
 use crate::{TDES, Cipher};
 use rmath::rand::{CryptoRand, DefaultSeed};
+use crate::aes::AES;
+
+#[test]
+fn ecb_aes() {
+    let cases = [
+        (
+            vec![0x2B7E1516u32, 0x28AED2A6, 0xABF71588, 0x09CF4F3C,],
+            vec![0x6BC1BEE2u32, 0x2E409F96, 0xE93D7E11, 0x7393172A, 0xAE2D8A57, 0x1E03AC9C, 0x9EB76FAC, 0x45AF8E51, 0x30C81C46, 0xA35CE411, 0xE5FBC119, 0x1A0A52EF, 0xF69F2445, 0xDF4F9B17, 0xAD2B417B, 0xE66C3710,],
+            vec![0x3AD77BB4u32, 0x0D7A3660, 0xA89ECAF3, 0x2466EF97, 0xF5D3D585, 0x03B9699D, 0xE785895A, 0x96FDBAAF, 0x43B1CD7F, 0x598ECE23, 0x881B00E3, 0xED030688, 0x7B0C785E, 0x27E8AD3F, 0x82232071, 0x04725DD4,],
+        ),
+    ];
+    
+    let (mut buf, mut tmp) = (Vec::with_capacity(16), Vec::with_capacity(16));
+    for (i, ele) in cases.iter().enumerate() {
+        buf.clear();
+        ele.0.iter().for_each(|&x| {buf.append(&mut x.to_be_bytes().to_vec());});
+        let aes = AES::new(buf.clone()).unwrap();
+        let cm = ECB::new(aes, EmptyPadding::new());
+        let (mut cm_encrypt, mut cm_decrypt) = (cm.clone().encrypt_stream(), cm.decrypt_stream());
+
+        ele.1.iter().for_each(|&x| {
+            cm_encrypt.write(x.to_be_bytes().as_ref()).unwrap();
+        });
+
+        buf.clear();
+        cm_encrypt.finish().unwrap().draw_off(&mut buf);
+
+        tmp.clear();
+        ele.2.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+
+        assert_eq!(tmp, buf, "encrypt-case: {}", i);
+
+        ele.2.iter().for_each(|&x| {
+            cm_decrypt.write(x.to_be_bytes().as_ref()).unwrap();
+        });
+
+        buf.clear();
+        cm_decrypt.finish().unwrap().draw_off(&mut buf);
+        tmp.clear();
+        ele.1.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+        assert_eq!(tmp, buf, "decrypt-case: {}", i);
+    }
+}
 
 #[test]
 fn ecb_tdes() {

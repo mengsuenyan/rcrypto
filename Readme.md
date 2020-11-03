@@ -12,7 +12,8 @@ A rust cryptography library
 - [x] Keccak;
 - [x] SHA3;
 - [x] HMAC;
-- [ ] BlockCipherMode;
+- [x] BlockCipherMode;
+  - [x] ECB;
 - [x] TDES;
 - [x] CMAC;
 - [x] ZUC/ZUCCipher/ZUCMac;

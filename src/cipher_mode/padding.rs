@@ -55,6 +55,7 @@ impl<C: Cipher> Padding for DefaultPadding<C> {
 }
 
 /// padding nothing
+#[derive(Clone)]
 pub struct EmptyPadding;
 
 impl EmptyPadding {

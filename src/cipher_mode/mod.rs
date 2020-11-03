@@ -29,3 +29,6 @@ pub use counter::{Counter, DefaultCounter};
 
 mod ctr;
 pub use ctr::{CTR, CTREncrypt, CTRDecrypt};
+
+#[cfg(test)]
+mod cipher_mode_test;

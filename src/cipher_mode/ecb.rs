@@ -9,6 +9,49 @@ use std::marker::PhantomData;
 use crate::cipher_mode::pond::{EncryptStream, Pond, DecryptStream};
 
 /// ECB(Electronic Codebook Mode)
+/// 
+/// # Usage
+/// 
+/// ```Rust
+/// let key = (0x0123456789ABCDEFu64, 0x23456789ABCDEF01u64, 0x456789ABCDEF0123u64);
+/// let tdes = TDES::new(key.0.to_be_bytes(), key.1.to_be_bytes(), key.2.to_be_bytes();
+/// let ecb = ECB::new(tdes.clone(), EmptyPadding::new());
+/// let decrypt = ecb.clone();   // the instance of ecb can only be used for one of encryption or decryption;
+/// let txt = 0x6BC1BEE22E409F96u64;
+/// 
+/// let mut cipher_txt = Vec::new();
+/// ecb.encrypt(&mut cipher_txt, txt.to_be_bytes().as_ref())?;
+/// 
+/// let mut plain_txt = Vec::new();
+/// decrypt.decrypt(&mut plain_txt, cipher_txt.as_slice())?;
+/// 
+/// // or
+/// let mut en = ECB:new(tdes.clone(), EmptyPadding::new()).encrypt_stream();
+/// 
+/// let txt = vec![0x6BC1BEE22E409F96u64, 0xE93D7E117393172A, 0xAE2D8A571E03AC9C, 0x9EB76FAC45AF8E51,];
+/// 
+/// txt.iter().for_each(|&x| {
+///     en.write(x.to_be_bytes().as_ref()).unwrap();
+/// });
+/// 
+/// cipher_txt.clear();
+/// en.finish().unwrap().draw_off(&mut cipher_txt);
+/// 
+/// 
+/// // or
+/// let mut en = ECB:new(tdes.clone(), EmptyPadding::new()).encrypt_stream();
+/// 
+/// let txt = vec![0x6BC1BEE22E409F96u64, 0xE93D7E117393172A, 0xAE2D8A571E03AC9C, 0x9EB76FAC45AF8E51,];
+/// 
+/// cipher_txt.clear();
+/// txt.iter().for_each(|&x| {
+///     en.write(x.to_be_bytes().as_ref()).unwrap().draw_off(&mut cipher_txt);
+/// });
+/// 
+/// ```
+/// 
+/// 
+/// 
 pub struct ECB<C, P> {
     buf: Cell<Vec<u8>>,
     cipher: C, 
@@ -251,7 +294,7 @@ impl<C, P> DecryptStream for ECBDecrypt<C, P>
         let mut data = self.data.as_slice();
         while data.len() > block_len {
             let tmp = &data[..block_len];
-            match self.ecb.cipher.encrypt(txt, tmp) {
+            match self.ecb.cipher.decrypt(txt, tmp) {
                 Ok(_) => {
                     self.pond.append(txt);
                     data = &data[block_len..];

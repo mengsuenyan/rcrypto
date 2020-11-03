@@ -17,6 +17,10 @@ impl<'a> Pond<'a> {
     }
     
     /// append all data into the `buf`, and return the length of the new data
+    /// 
+    /// # Note
+    /// 
+    /// This method does not clear the buf contents, just append the pond to the tail of buf;
     pub fn draw_off(self, buf: &mut Vec<u8>) -> usize {
         let len = self.pond.len();
         buf.append(self.pond);

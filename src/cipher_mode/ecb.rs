@@ -125,11 +125,12 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
 
         let mut data = tmp.as_slice();
         while !data.is_empty() {
-            let tmp = &data[..block_size];
+            let len = std::cmp::min(data.len(), block_size);
+            let tmp = &data[..len];
             match self.cipher.encrypt(txt, tmp) {
                 Ok(_) => {
                     dst.append(txt);
-                    data = &data[block_size..];
+                    data = &data[len..];
                 },
                 Err(e) => {
                     return Err(e);
@@ -204,10 +205,8 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
         if data.is_empty() {
             return Ok(Pond::new(&mut self.pond, false));
         } else {
-            let len = block_len - self.data.len();
-            data.iter().take(len).for_each(|&e| {
-                self.data.push(e);
-            });
+            let len = std::cmp::min(block_len - self.data.len(), data.len());
+            self.data.extend(data.iter().take(len));
             data = &data[len..];
         }
         
@@ -253,11 +252,12 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
         let txt = self.ecb.get_buf();
         let mut data = self.data.as_slice();
         while !data.is_empty() {
-            let tmp = &data[..block_len];
+            let len = std::cmp::min(block_len, data.len());
+            let tmp = &data[..len];
             match self.ecb.cipher.encrypt(txt, tmp) {
                 Ok(_) => {
                     self.pond.append(txt);
-                    data = &data[block_len..];
+                    data = &data[len..];
                 },
                 Err(e) => {
                     return Err(e);

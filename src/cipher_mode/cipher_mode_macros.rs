@@ -91,6 +91,8 @@ macro_rules! impl_fn_reset_ofb {
             pub fn reset(&mut self) {
                 self.data.clear();
                 self.pond.clear();
+                self.ij.clear();
+                self.ij.extend(self.ofb.cur_iv.iter());
             }
         }
     };

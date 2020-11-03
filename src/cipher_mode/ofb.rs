@@ -98,32 +98,8 @@ impl<C, IV> OFB<C, IV>
         let block_len = self.cipher.block_size().unwrap_or(1);
         let oj = self.get_buf();
         
-        while !data.is_empty() {
+        while data.len() >= block_len {
             match self.cipher.encrypt(oj, ij.as_slice()) {
-                Ok(_) => {
-                    let block = &data[..block_len];
-                    oj.iter().zip(block.iter()).for_each(|(&a, &b)| {
-                        dst.push(a ^ b);
-                    });
-                    ij.clear();
-                    ij.append(oj);
-                    data = &data[block_len..];
-                },
-                Err(e) => {
-                    return Err(e);
-                }
-            }
-        }
-        
-        Ok(dst.len())
-    }
-    
-    fn decrypt_inner(&self, mut data: &[u8], ij: &mut Vec<u8>, dst: &mut Vec<u8>) -> Result<usize, CryptoError> {
-        let block_len = self.cipher.block_size().unwrap_or(1);
-        let oj = self.get_buf();
-        
-        while !data.is_empty() {
-            match self.cipher.decrypt(oj, ij.as_slice()) {
                 Ok(_) => {
                     let block = &data[..block_len];
                     oj.iter().zip(block.iter()).for_each(|(&a, &b)| {
@@ -164,16 +140,29 @@ impl<C, IV> Cipher for OFB<C, IV>
 
     fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<usize, CryptoError> {
         dst.clear();
+        let block_size = self.cipher.block_size().unwrap_or(1);
         
         let mut ij = self.cur_iv.clone();
-        self.encrypt_inner(plaintext_block, &mut ij, dst)
+        let remain = plaintext_block.len() % block_size;
+        self.encrypt_inner(&plaintext_block[..(plaintext_block.len() - remain)], &mut ij, dst)?;
+
+        let oj = self.get_buf();
+        match self.cipher.encrypt(oj, ij.as_slice()) {
+            Ok(_) => {
+                let tmp = &plaintext_block[(plaintext_block.len() - remain)..];
+                oj.iter().take(remain).zip(tmp.iter()).for_each(|(&a, &b)| {
+                    dst.push(a ^ b);
+                });
+                Ok(dst.len())
+            },
+            Err(e) => {
+                return Err(e);
+            }
+        }
     }
 
     fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<usize, CryptoError> {
-        dst.clear();
-        
-        let mut ij = self.cur_iv.clone();
-        self.decrypt_inner(cipher_block, &mut ij, dst)
+        self.encrypt(dst, cipher_block)
     }
 }
 
@@ -203,20 +192,16 @@ impl<C, IV> EncryptStream for OFBEncrypt<C, IV>
             Ok(Pond::new(&mut self.pond, false))
         } else {
             let block_len = self.ofb.block_size().unwrap_or(1);
-            let len = self.data.len() + data.len();
-            let remain = if (len % block_len) == 0 {
-                self.data.extend_from_slice(data);
-                &data[data.len()..]
-            } else {
-                let bound = data.len() - (len % block_len);
-                self.data.extend_from_slice(&data[..bound]);
-                &data[bound..]
-            };
+            self.data.extend(data.iter());
             
             match self.ofb.encrypt_inner(self.data.as_slice(), &mut self.ij, &mut self.pond) {
                 Ok(_) => {
+                    let remain = self.data.len() % block_len;
+                    let tmp = self.ofb.get_buf();
+                    tmp.clear();
+                    tmp.extend(self.data.iter().skip(self.data.len() - remain));
                     self.data.clear();
-                    self.data.extend_from_slice(remain);
+                    self.data.extend(tmp.iter());
                     Ok(Pond::new(&mut self.pond, false))
                 },
                 Err(e) => {
@@ -228,13 +213,19 @@ impl<C, IV> EncryptStream for OFBEncrypt<C, IV>
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
         if self.data.is_empty() {
-            self.ij = self.ofb.cur_iv();
+            self.ij.clear();
+            self.ij.extend(self.ofb.cur_iv.iter());
             Ok(Pond::new(&mut self.pond, true))
         } else {
-            match self.ofb.encrypt_inner(self.data.as_slice(), &mut self.ij, &mut self.pond) {
+            let oj = self.ofb.get_buf();
+            match self.ofb.cipher.encrypt(oj, self.ij.as_slice()) {
                 Ok(_) => {
+                    for (&a, &b) in self.data.iter().zip(oj.iter().take(self.data.len())) {
+                        self.pond.push(a ^ b);
+                    };
                     self.data.clear();
-                    self.ij = self.ofb.cur_iv();
+                    self.ij.clear();
+                    self.ij.extend(self.ofb.cur_iv.iter());
                     Ok(Pond::new(&mut self.pond, true))
                 },
                 Err(e) => Err(e)
@@ -250,20 +241,16 @@ impl<C, IV> DecryptStream for OFBDecrypt<C, IV>
             Ok(Pond::new(&mut self.pond, false))
         } else {
             let block_len = self.ofb.block_size().unwrap_or(1);
-            let len = self.data.len() + data.len();
-            let remain = if (len % block_len) == 0 {
-                self.data.extend_from_slice(data);
-                &data[data.len()..]
-            } else {
-                let bound = data.len() - (len % block_len);
-                self.data.extend_from_slice(&data[..bound]);
-                &data[bound..]
-            };
+            self.data.extend(data.iter());
 
-            match self.ofb.decrypt_inner(self.data.as_slice(), &mut self.ij, &mut self.pond) {
+            match self.ofb.encrypt_inner(self.data.as_slice(), &mut self.ij, &mut self.pond) {
                 Ok(_) => {
+                    let remain = self.data.len() % block_len;
+                    let tmp = self.ofb.get_buf();
+                    tmp.clear();
+                    tmp.extend(self.data.iter().skip(self.data.len() - remain));
                     self.data.clear();
-                    self.data.extend_from_slice(remain);
+                    self.data.extend(tmp.iter());
                     Ok(Pond::new(&mut self.pond, false))
                 },
                 Err(e) => {
@@ -275,15 +262,22 @@ impl<C, IV> DecryptStream for OFBDecrypt<C, IV>
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
         if self.data.is_empty() {
+            self.ij.clear();
+            self.ij.extend(self.ofb.cur_iv.iter());
             Ok(Pond::new(&mut self.pond, true))
         } else {
-            match self.ofb.decrypt_inner(self.data.as_slice(), &mut self.ij, &mut self.pond) {
+            let oj = self.ofb.get_buf();
+            match self.ofb.cipher.encrypt(oj, self.ij.as_slice()) {
                 Ok(_) => {
+                    for (&a, &b) in self.data.iter().zip(oj.iter().take(self.data.len())) {
+                        self.pond.push(a ^ b);
+                    };
                     self.data.clear();
-                    self.ij = self.ofb.cur_iv();
+                    self.ij.clear();
+                    self.ij.extend(self.ofb.cur_iv.iter());
                     Ok(Pond::new(&mut self.pond, true))
                 },
-                Err(e) => Err(e),
+                Err(e) => Err(e)
             }
         }
     }

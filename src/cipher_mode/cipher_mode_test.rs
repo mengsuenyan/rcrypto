@@ -1,4 +1,4 @@
-use crate::cipher_mode::{ECB, EmptyPadding, EncryptStream, DecryptStream, CBC, DefaultInitialVec, CFB};
+use crate::cipher_mode::{ECB, EmptyPadding, EncryptStream, DecryptStream, CBC, DefaultInitialVec, CFB, OFB};
 use crate::{TDES, Cipher};
 use rmath::rand::{CryptoRand, DefaultSeed};
 
@@ -199,6 +199,90 @@ fn cfb_test() {
         });
         assert_eq!(tmp, buf, "decrypt-case: {}", i);
         
+        let (mut cm_encrypt, mut cm_decrypt) = (cm.clone().encrypt_stream(), cm.clone().decrypt_stream());
+        
+        ele.1.iter().for_each(|&x| {
+            cm_encrypt.write(x.to_be_bytes().as_ref()).unwrap();
+        });
+        
+        buf.clear();
+        cm_encrypt.finish().unwrap().draw_off(&mut buf);
+        
+        tmp.clear();
+        ele.2.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+        
+        assert_eq!(tmp, buf, "encrypt-case: {}", i);
+        
+        ele.2.iter().for_each(|&x| {
+            cm_decrypt.write(x.to_be_bytes().as_ref()).unwrap();
+        });
+        
+        buf.clear();
+        cm_decrypt.finish().unwrap().draw_off(&mut buf);
+        tmp.clear();
+        ele.1.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+        assert_eq!(tmp, buf, "decrypt-case: {}", i);
+    }
+}
+
+#[test]
+fn ofb_test() {
+    let cases = [
+        (
+            (0x0123456789ABCDEFu64, 0x23456789ABCDEF01u64, 0x456789ABCDEF0123u64, 0xF69F2445DF4F9B17u64),
+            vec![0x6BC1BEE2u32, 0x2E409F96, 0xE93D7E11, 0x7393172A, 0xAE2D8A57, 0x1E03AC9C, 0x9EB76FAC, 0x45AF8E51,],
+            vec![0x078BB74Eu32, 0x59CE7ED6, 0x267E1206, 0x92667DA1, 0xA58662D7, 0xE04CBC64, 0x2144D55C, 0x03DB5AEE,],
+        ),
+        (
+            (0x0123456789ABCDEFu64, 0x23456789ABCDEF01u64, 0x0123456789ABCDEFu64, 0xF69F2445DF4F9B17u64),
+            vec![0x6BC1BEE2, 0x2E409F96, 0xE93D7E11, 0x7393172A, 0xAE2D8A57, 0x1E03AC9C, 0x9EB76FAC, 0x45AF8E51,],
+            vec![0x6195B9C2, 0xC39909C5, 0x3334BA77, 0xFFDCCC80, 0xE485E85F, 0x0A63E764, 0x6D8D732E, 0x33241F94,],
+        ),
+    ];
+    
+    let (mut buf, mut tmp) = (Vec::with_capacity(16), Vec::with_capacity(16));
+    for (i, ele) in cases.iter().enumerate() {
+        let tdes = TDES::new(ele.0.0.to_be_bytes(), ele.0.1.to_be_bytes(), ele.0.2.to_be_bytes());
+        let iv = DefaultInitialVec::new(&tdes, CryptoRand::new(&DefaultSeed::<u32>::new().unwrap()).unwrap());
+        let mut cm = OFB::new(tdes, iv).unwrap();
+        cm.set_iv(ele.0.3.to_be_bytes().to_vec()).unwrap();
+
+        let cm_en = cm.clone();
+        tmp.clear();
+        ele.1.iter().for_each(|&x| {
+            tmp.append(&mut x.to_be_bytes().to_vec());
+        });
+        cm_en.encrypt(&mut buf, tmp.as_slice()).unwrap();
+        tmp.clear();
+        ele.2.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+        assert_eq!(tmp, buf, "encrypt-case: {}", i);
+
+        let cm_de = cm.clone();
+        tmp.clear();
+        ele.2.iter().for_each(|&x| {
+            tmp.append(&mut x.to_be_bytes().to_vec());
+        });
+        cm_de.decrypt(&mut buf, tmp.as_slice()).unwrap();
+        tmp.clear();
+        ele.1.iter().for_each(|&x| {
+            x.to_be_bytes().iter().for_each(|&y| {
+                tmp.push(y);
+            });
+        });
+        assert_eq!(tmp, buf, "decrypt-case: {}", i);
+
         let (mut cm_encrypt, mut cm_decrypt) = (cm.clone().encrypt_stream(), cm.clone().decrypt_stream());
         
         ele.1.iter().for_each(|&x| {

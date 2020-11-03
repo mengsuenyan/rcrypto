@@ -13,7 +13,7 @@ A rust cryptography library
 - [x] SHA3;
 - [x] HMAC;
 - [x] BlockCipherMode;
-  - [x] ECB/CBC/CFB;
+  - [x] ECB/CBC/CFB/OFB;
 - [x] TDES;
 - [x] CMAC;
 - [x] ZUC/ZUCCipher/ZUCMac;

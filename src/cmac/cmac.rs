@@ -2,10 +2,8 @@
 //! SP 800-38B  
 
 
-use crate::{Cipher, CryptoError, Digest, DES, TDES, CryptoErrorKind};
-use std::any::TypeId;
-use crate::aes::AES;
-use crate::cmac::const_tables::{RB_128, RB_64};
+use crate::{Cipher, CryptoError, Digest, CryptoErrorKind};
+use crate::cmac::const_tables::{RB_128, RB_64, RB_32, RB_48, RB_96, RB_160, RB_192, RB_224, RB_256, RB_320, RB_384, RB_448, RB_512, RB_768, RB_1024, RB_2048};
 
 /// CMAC(Block Cipher-based Message Authentication Code)  
 /// SP 800-38B  
@@ -47,7 +45,7 @@ impl<C: 'static + Cipher> CMAC<C> {
         
         Self::shl_one(k1, k2);
         
-        if (k2.first().unwrap() >> 7) > 0 {
+        if (k1.first().unwrap() >> 7) > 0 {
             k2.iter_mut().zip(rb.iter()).for_each(|(a, &b)| {
                 *a ^= b;
             });
@@ -56,20 +54,54 @@ impl<C: 'static + Cipher> CMAC<C> {
         Ok(())
     }
     
-    /// `c` must be an instance of the type AES/DES/TDES
+    fn block_size_to_rb(block_size: usize) -> Option<u32> {
+        match block_size {
+            4 => Some(RB_32),
+            6 => Some(RB_48),
+            8 => Some(RB_64),
+            12 => Some(RB_96),
+            16 => Some(RB_128),
+            20 => Some(RB_160),
+            24 => Some(RB_192),
+            28 => Some(RB_224),
+            32 => Some(RB_256),
+            40 => Some(RB_320),
+            48 => Some(RB_384),
+            56 => Some(RB_448),
+            64 => Some(RB_512),
+            96 => Some(RB_768),
+            128 => Some(RB_1024),
+            256 => Some(RB_2048),
+            _ => None,
+        }
+    }
+    
+    pub fn is_support(c: &C) -> bool {
+        match c.block_size() {
+            Some(b) => Self::block_size_to_rb(b).is_some(),
+            None => false,
+        }
+    }
+    
+    /// `c` must be satisfied the `CMAC::is_support(&c) == true`
     pub fn new(c: C) -> Result<Self, CryptoError> {
-        let (b, rb) = if TypeId::of::<C>() == TypeId::of::<AES>() {
-            (c.block_size().unwrap(), RB_128.as_ref())
-        } else if TypeId::of::<C>() == TypeId::of::<DES>() || TypeId::of::<C>() == TypeId::of::<TDES>() {
-            (c.block_size().unwrap(), RB_64.as_ref())
+        let (b, rb) = if Self::is_support(&c) {
+            let b = c.block_size().unwrap();
+            let x = Self::block_size_to_rb(b).unwrap();
+            let mut buf = Vec::with_capacity(b);
+            buf.resize(b, 0u8);
+            buf.iter_mut().rev().zip(x.to_le_bytes().iter()).for_each(|(a, &b)| {
+                *a = b;
+            });
+            (b, buf)
         } else {
-            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The CMAC current only support AES/DES/TDES."));
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, format!("Does not support the block size of {}", std::any::type_name::<C>())));
         };
         
         let (mut k1, mut k2) = (Vec::with_capacity(b), Vec::with_capacity(b));
         let mut nonce = Vec::new();
         nonce.resize(b, 0);
-        Self::subkey_gen(&c, &mut k1, &mut k2, rb).map(|_| {Self {
+        Self::subkey_gen(&c, &mut k1, &mut k2, rb.as_slice()).map(|_| {Self {
             k1,
             k2,
             nonce,
@@ -97,7 +129,7 @@ impl<C: Cipher> Digest for CMAC<C> {
             self.is_check = false;
         }
         
-        let data = if (data.len() + self.data.len()) < b {
+        let mut data = if (data.len() + self.data.len()) < b {
             self.data.extend_from_slice(data);
             &data[data.len()..]
         } else {
@@ -119,6 +151,7 @@ impl<C: Cipher> Digest for CMAC<C> {
                     *a = b ^ c;
                 });
                 self.cipher.encrypt(&mut self.nonce, self.data.as_slice()).unwrap();
+                data = &data[b..];
             }
         }
         

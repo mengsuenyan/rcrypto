@@ -6,3 +6,6 @@ mod cmac;
 mod const_tables;
 
 pub use cmac::CMAC;
+
+#[cfg(test)]
+mod cmac_test;

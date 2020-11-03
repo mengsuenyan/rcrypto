@@ -67,3 +67,37 @@ impl Cipher for TDES {
         self.des1.decrypt(dst, self.get_buf())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{TDES, Cipher};
+
+    #[test]
+    fn tdes() {
+        // (key, text, ciphertext)
+        let cases = [
+            (
+                (0x0123456789ABCDEFu64, 0x23456789ABCDEF01u64, 0x0123456789ABCDEFu64), 
+                vec![0x6BC1BEE22E409F96u64, 0xE93D7E117393172A, 0xAE2D8A571E03AC9C, 0x9EB76FAC45AF8E51,],
+                vec![0x06EDE3D82884090Au64, 0xFF322C19F0518486, 0x730576972A666E58, 0xB6C88CF107340D3D,],
+            ),
+            (
+                (0x0123456789ABCDEFu64, 0x23456789ABCDEF01u64, 0x456789ABCDEF0123u64),
+                vec![0x6BC1BEE22E409F96u64, 0xE93D7E117393172A, 0xAE2D8A571E03AC9C, 0x9EB76FAC45AF8E51,],
+                vec![0x714772F339841D34, 0x267FCC4BD2949CC3, 0xEE11C22A576A3038, 0x76183F99C0B6DE87],
+            ),
+        ];
+        
+        let mut buf = Vec::with_capacity(8);
+        for (i, ele) in cases.iter().enumerate() {
+            let tdes = TDES::new(ele.0.0.to_be_bytes(), ele.0.1.to_be_bytes(), ele.0.2.to_be_bytes());
+            for (j, txt) in ele.1.iter().zip(ele.2.iter()).enumerate() {
+                tdes.encrypt(&mut buf, txt.0.to_be_bytes().as_ref()).unwrap();
+                assert_eq!(buf.as_slice(), txt.1.to_be_bytes().as_ref(), "encrypt-case: {}-{}", i, j);
+                
+                tdes.decrypt(&mut buf, txt.1.to_be_bytes().as_ref()).unwrap();
+                assert_eq!(buf.as_slice(), txt.0.to_be_bytes().as_ref(), "decrypt-case: {}-{}", i, j);
+            }
+        }
+    }
+}

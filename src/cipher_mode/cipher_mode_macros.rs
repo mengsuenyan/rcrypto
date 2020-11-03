@@ -50,13 +50,15 @@ macro_rules! impl_cipher_iv {
 }
 
 macro_rules! impl_fn_reset_iv {
-    ($Type0: ident) => {
+    ($Type0: ident, $IN: ident) => {
         impl<C, P, IV> $Type0<C, P, IV> 
             where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
             
             pub fn reset(&mut self) {
                 self.data.clear();
                 self.pond.clear();
+                self.ij.clear();
+                self.ij.extend(self.$IN.cur_iv.iter());
             }
         }
     };

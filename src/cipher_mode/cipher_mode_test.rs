@@ -138,3 +138,9 @@ fn cbc_test() {
         assert_eq!(tmp, buf, "decrypt-case: {}", i);
     }
 }
+
+#[test]
+fn cfb_test() {
+    // let cases = [
+    // ];
+}

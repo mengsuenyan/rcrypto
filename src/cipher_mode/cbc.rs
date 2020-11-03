@@ -85,7 +85,7 @@ impl<C, P, IV> CBC<C, P, IV>
         CBCEncrypt {
             pond: Vec::with_capacity(self.cipher.block_size().unwrap_or(1)),
             data: Vec::with_capacity(self.cipher.block_size().unwrap_or(1)),
-            cipher_txt: self.cur_iv.clone(),
+            ij: self.cur_iv.clone(),
             cbc: self,
         }
     }
@@ -94,7 +94,7 @@ impl<C, P, IV> CBC<C, P, IV>
         CBCDecrypt {
             pond: Vec::with_capacity(self.cipher.block_size().unwrap_or(1)),
             data: Vec::with_capacity(self.cipher.block_size().unwrap_or(1)),
-            prev_cipher: self.cur_iv.clone(),
+            ij: self.cur_iv.clone(),
             cbc: self,
         }
     }
@@ -225,45 +225,28 @@ pub struct CBCEncrypt<C, P, IV> {
     cbc: CBC<C, P, IV>,
     data: Vec<u8>,
     pond: Vec<u8>,
-    cipher_txt: Vec<u8>,
+    ij: Vec<u8>,
 }
 
 pub struct CBCDecrypt<C, P, IV> {
     cbc: CBC<C, P, IV>,
     data: Vec<u8>,
     pond: Vec<u8>,
-    prev_cipher: Vec<u8>,
+    ij: Vec<u8>,
 }
 
 impl_cipher_iv!(CBCEncrypt, cbc);
-// impl_fn_reset_iv!(CBCEncrypt);
+impl_fn_reset_iv!(CBCEncrypt, cbc);
 impl_cipher_iv!(CBCDecrypt, cbc);
-// impl_fn_reset_iv!(CBCDecrypt);
+impl_fn_reset_iv!(CBCDecrypt, cbc);
 
 impl<C, P, IV> CBCEncrypt<C, P, IV> 
     where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
-    pub fn reset(&mut self) {
-        self.data.clear();
-        self.pond.clear();
-        self.cipher_txt.clear();
-        self.cipher_txt.extend(self.cbc.cur_iv.iter());
-    }
-    
     fn xor_iv(cur: &mut Vec<u8>, block: &[u8], prev: &Vec<u8>) {
         cur.clear();
         block.iter().zip(prev.iter()).for_each(|(&a, &b)| {
             cur.push(a ^ b);
         });
-    }
-}
-
-impl<C, P, IV> CBCDecrypt<C, P, IV> 
-    where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
-    pub fn reset(&mut self) {
-        self.data.clear();
-        self.pond.clear();
-        self.prev_cipher.clear();
-        self.prev_cipher.extend(self.cbc.cur_iv.iter());
     }
 }
 
@@ -283,10 +266,10 @@ impl<C, P, IV> EncryptStream for CBCEncrypt<C, P, IV>
         
         let txt = self.cbc.get_buf();
         if self.data.len() == block_len {
-            Self::xor_iv(txt, self.data.as_slice(), &self.cipher_txt);
-            match self.cbc.cipher.encrypt(&mut self.cipher_txt, txt.as_slice()) {
+            Self::xor_iv(txt, self.data.as_slice(), &self.ij);
+            match self.cbc.cipher.encrypt(&mut self.ij, txt.as_slice()) {
                 Ok(_) => {
-                    self.pond.extend(self.cipher_txt.iter());
+                    self.pond.extend(self.ij.iter());
                     self.data.clear();
                 },
                 Err(e) => {
@@ -297,10 +280,10 @@ impl<C, P, IV> EncryptStream for CBCEncrypt<C, P, IV>
         
         while data.len() >= block_len {
             let tmp = &data[..block_len];
-            Self::xor_iv(txt, tmp, &self.cipher_txt);
-            match self.cbc.cipher.encrypt(&mut self.cipher_txt, txt.as_slice()) {
+            Self::xor_iv(txt, tmp, &self.ij);
+            match self.cbc.cipher.encrypt(&mut self.ij, txt.as_slice()) {
                 Ok(_) => {
-                    self.pond.extend(self.cipher_txt.iter());
+                    self.pond.extend(self.ij.iter());
                     data = &data[block_len..];
                 },
                 Err(e) => {
@@ -325,11 +308,11 @@ impl<C, P, IV> EncryptStream for CBCEncrypt<C, P, IV>
         while !data.is_empty() {
             let len = std::cmp::min(block_len, data.len());
             let tmp = &data[..len];
-            Self::xor_iv(txt, tmp, &self.cipher_txt);
-            match self.cbc.cipher.encrypt(&mut self.cipher_txt, txt.as_slice()) {
+            Self::xor_iv(txt, tmp, &self.ij);
+            match self.cbc.cipher.encrypt(&mut self.ij, txt.as_slice()) {
                 Ok(_) => {
-                    self.pond.append(&mut self.cipher_txt);
-                    self.cipher_txt.extend(self.cbc.cur_iv.iter());
+                    self.pond.append(&mut self.ij);
+                    self.ij.extend(self.cbc.cur_iv.iter());
                     data = &data[len..];
                 },
                 Err(e) => {
@@ -361,7 +344,7 @@ impl<C, P, IV> DecryptStream for CBCDecrypt<C, P, IV>
             let tmp = &data[..block_len];
             match self.cbc.cipher.decrypt(txt, tmp) { 
                 Ok(_) => {
-                    txt.iter_mut().zip(self.prev_cipher.iter_mut().zip(tmp.iter())).for_each(|(a, (b, &c))| 
+                    txt.iter_mut().zip(self.ij.iter_mut().zip(tmp.iter())).for_each(|(a, (b, &c))| 
                         {
                             *a ^= *b;
                             *b = c;
@@ -385,7 +368,7 @@ impl<C, P, IV> DecryptStream for CBCDecrypt<C, P, IV>
         let txt = self.cbc.get_buf();
         match self.cbc.cipher.decrypt(txt, self.data.as_slice()) {
             Ok(_) => {
-                txt.iter_mut().zip(self.prev_cipher.iter()).for_each(|(a, &b)| {
+                txt.iter_mut().zip(self.ij.iter()).for_each(|(a, &b)| {
                     *a ^= b;
                 });
                 if let Err(e) = self.cbc.padding.unpadding(txt) {
@@ -393,8 +376,8 @@ impl<C, P, IV> DecryptStream for CBCDecrypt<C, P, IV>
                 } else {
                     self.data.clear();
                     self.pond.append(txt);
-                    self.prev_cipher.clear();
-                    self.prev_cipher.extend(self.cbc.cur_iv.iter());
+                    self.ij.clear();
+                    self.ij.extend(self.cbc.cur_iv.iter());
                     Ok(Pond::new(&mut self.pond, true))
                 }
             },

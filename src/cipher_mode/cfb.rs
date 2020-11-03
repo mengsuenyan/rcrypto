@@ -252,9 +252,9 @@ pub struct CFBDecrypt<C, P, IV> {
 }
 
 impl_cipher_iv!(CFBEncrypt, cfb);
-impl_fn_reset_iv!(CFBEncrypt);
+impl_fn_reset_iv!(CFBEncrypt, cfb);
 impl_cipher_iv!(CFBDecrypt, cfb);
-impl_fn_reset_iv!(CFBDecrypt);
+impl_fn_reset_iv!(CFBDecrypt, cfb);
 
 impl<C, P, IV> EncryptStream for CFBEncrypt<C, P, IV> 
     where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {

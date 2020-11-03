@@ -2,8 +2,7 @@
 
 use std::cell::Cell;
 use crate::{Cipher, CryptoError, CryptoErrorKind};
-use crate::cipher_mode::{Padding, InitialVec, EmptyPadding, EncryptStream, Pond, DecryptStream};
-use std::any::TypeId;
+use crate::cipher_mode::{Padding, InitialVec, EncryptStream, Pond, DecryptStream};
 use std::marker::PhantomData;
 
 pub struct CFB<C, P, IV> {
@@ -36,10 +35,11 @@ impl<C, P, IV> CFB<C, P, IV>
         }
         
         let mut curiv = Vec::new();
+        curiv.resize(s, 0);
         p.padding(&mut curiv);
-        if curiv.len() != s {
+        if (curiv.len() % s) != 0 {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter,
-                format!("Wrong padding len: {}, the padding len should be equal to s: {}", curiv.len(), s)));
+                format!("Wrong padding len: {}, the padding len should be equal to a multiple of s: {}", curiv.len(), s)));
         }
         
         let mut iv = iv;
@@ -154,7 +154,7 @@ impl<C, P, IV> CFB<C, P, IV>
     fn decrypt_inner(&self, ij: &mut Vec<u8>, dst: &mut Vec<u8>, mut data: &[u8]) -> Result<usize, CryptoError> {
         let oj = self.get_buf();
         while !data.is_empty() {
-            match self.cipher.decrypt(oj, ij.as_slice()) {
+            match self.cipher.encrypt(oj, ij.as_slice()) {
                 Ok(_) => {
                     let cj = &data[..self.s];
                     // $P_j = C_j \oplus MSB_s(O_j)$
@@ -196,10 +196,8 @@ impl<C, P, IV> Cipher for CFB<C, P, IV>
         let remain = plaintext_block.len() % self.s;
         let mut data = plaintext_block[(plaintext_block.len() - remain)..plaintext_block.len()].to_vec();
         
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.padding(&mut data);
-        }
-        
+        self.padding.padding(&mut data);
+
         self.encrypt_inner(&mut ij, dst, data.as_slice())
     }
 
@@ -213,12 +211,8 @@ impl<C, P, IV> Cipher for CFB<C, P, IV>
         let mut ij = self.cur_iv.clone();
         
         self.decrypt_inner(&mut ij, dst, cipher_block)?;
-        
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.unpadding(dst)
-        } else {
-            Ok(dst.len())
-        }
+
+        self.padding.unpadding(dst)
     }
 }
 
@@ -263,15 +257,17 @@ impl<C, P, IV> EncryptStream for CFBEncrypt<C, P, IV>
         if data.is_empty() {
             return Ok(Pond::new(&mut self.pond, false));
         } else {
-            let len = self.cfb.s - self.data.len();
+            let len = std::cmp::min(self.cfb.s - self.data.len(), data.len());
             self.data.extend(data.iter().take(len));
             data = &data[len..];
         }
         
-        if let Err(e) = self.cfb.encrypt_inner(&mut self.ij, &mut self.pond, self.data.as_slice()) {
-            return Err(e);
-        } else {
-            self.data.clear();
+        if self.data.len() == self.cfb.s {
+            if let Err(e) = self.cfb.encrypt_inner(&mut self.ij, &mut self.pond, self.data.as_slice()) {
+                return Err(e);
+            } else {
+                self.data.clear();
+            }
         }
         
         if let Err(e) = self.cfb.encrypt_inner(&mut self.ij, &mut self.pond, data) {
@@ -285,10 +281,8 @@ impl<C, P, IV> EncryptStream for CFBEncrypt<C, P, IV>
     }
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.cfb.padding.padding(&mut self.data);
-        }
-        
+        self.cfb.padding.padding(&mut self.data);
+
         if let Err(e) = self.cfb.encrypt_inner(&mut self.ij, &mut self.pond, self.data.as_slice()) {
             Err(e)
         } else {
@@ -318,6 +312,7 @@ impl<C, P, IV> DecryptStream for CFBDecrypt<C, P, IV>
             let tmp = self.cfb.get_buf();
             tmp.clear();
             tmp.extend_from_slice(&self.data.as_slice()[bound..]);
+            self.data.clear();
             self.data.append(tmp);
             Ok(Pond::new(&mut self.pond, false))
         }
@@ -327,14 +322,12 @@ impl<C, P, IV> DecryptStream for CFBDecrypt<C, P, IV>
         if let Err(e) = self.cfb.decrypt_inner(&mut self.ij, &mut self.pond, self.data.as_slice()) {
             Err(e)
         } else {
-            if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-                if let Err(e) = self.cfb.padding.unpadding(&mut self.pond) {
-                    return Err(e);
-                } else {
-                    self.data.clear();
-                    self.ij.clear();
-                    self.ij.extend(self.cfb.cur_iv.iter());
-                }
+            if let Err(e) = self.cfb.padding.unpadding(&mut self.pond) {
+                return Err(e);
+            } else {
+                self.data.clear();
+                self.ij.clear();
+                self.ij.extend(self.cfb.cur_iv.iter());
             }
             Ok(Pond::new(&mut self.pond, true))
         }

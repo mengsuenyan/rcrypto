@@ -2,8 +2,6 @@
 
 use crate::{Cipher, CryptoError, CryptoErrorKind};
 use crate::cipher_mode::padding::Padding;
-use std::any::TypeId;
-use crate::cipher_mode::EmptyPadding;
 use std::cell::Cell;
 use std::marker::PhantomData;
 use crate::cipher_mode::pond::{EncryptStream, Pond, DecryptStream};
@@ -119,9 +117,7 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
         }
 
         let mut tmp= data.to_vec();
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.padding(&mut tmp);
-        }
+        self.padding.padding(&mut tmp);
 
         let mut data = tmp.as_slice();
         while !data.is_empty() {
@@ -167,11 +163,7 @@ impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
             }
         }
 
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.unpadding(dst)
-        } else {
-            Ok(dst.len())
-        }
+        self.padding.unpadding(dst)
     }
 }
 
@@ -244,9 +236,7 @@ impl<C, P> EncryptStream for ECBEncrypt<C, P>
     }
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.ecb.padding.padding(&mut self.data);
-        }
+        self.ecb.padding.padding(&mut self.data);
         
         let block_len = self.ecb.cipher.block_size().unwrap_or(1);
         let txt = self.ecb.get_buf();

@@ -10,8 +10,7 @@
 
 use std::cell::Cell;
 use crate::{Cipher, CryptoError, CryptoErrorKind};
-use crate::cipher_mode::{Padding, InitialVec, EmptyPadding, EncryptStream, Pond, DecryptStream};
-use std::any::TypeId;
+use crate::cipher_mode::{Padding, InitialVec, EncryptStream, Pond, DecryptStream};
 use std::marker::PhantomData;
 
 pub struct CBC<C, P, IV> {
@@ -146,9 +145,7 @@ impl<C, P, IV> Cipher for CBC<C, P, IV>
         }
 
         let mut tmp = data.to_vec();
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.padding(&mut tmp);
-        }
+        self.padding.padding(&mut tmp);
 
         let mut data = tmp.as_slice();
         while !data.is_empty() {
@@ -198,12 +195,8 @@ impl<C, P, IV> Cipher for CBC<C, P, IV>
                 }
             }
         }
-        
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.padding.unpadding(dst)
-        } else {
-            Ok(dst.len())
-        }
+
+        self.padding.unpadding(dst)
     }
 }
 
@@ -298,10 +291,8 @@ impl<C, P, IV> EncryptStream for CBCEncrypt<C, P, IV>
     }
 
     fn finish(&mut self) -> Result<Pond, CryptoError> {
-        if TypeId::of::<EmptyPadding>() != TypeId::of::<P>() {
-            self.cbc.padding.padding(&mut self.data);
-        }
-        
+        self.cbc.padding.padding(&mut self.data);
+
         let block_len = self.cbc.cipher.block_size().unwrap_or(1);
         let txt = self.cbc.get_buf();
         let mut data = self.data.as_slice();

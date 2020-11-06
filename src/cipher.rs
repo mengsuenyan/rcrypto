@@ -1,6 +1,7 @@
 //! A trait for cryptography
 
 use crate::crypto_err::CryptoError;
+use std::process::Output;
 
 /// A trait for cryptography algorithms
 pub trait Cipher {
@@ -40,4 +41,13 @@ pub trait Digest {
 /// Extendable-output functions(XOFs)
 pub trait DigestXOF: Digest {
     fn set_digest_len(&mut self, bits_len: usize);
+}
+
+/// A trait for signature algorithms
+pub trait Signature {
+    type Output;
+    
+    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Output, CryptoError>;
+    
+    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Output, CryptoError>;
 }

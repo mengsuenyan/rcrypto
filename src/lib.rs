@@ -2,7 +2,7 @@
 extern crate rmath;
 
 mod cipher;
-pub use cipher::{Cipher, Digest, DigestXOF};
+pub use cipher::{Cipher, Digest, DigestXOF, Signature};
 
 mod crypto_err;
 pub use crypto_err::{CryptoErrorKind, CryptoError};

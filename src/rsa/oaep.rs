@@ -26,11 +26,11 @@ pub struct OAEP<H, R> {
 
 impl<H, R> OAEPInner<H, R>
     where H: Digest, R: IterSource<u32> {
-    fn new(digestor: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+    fn new(digest: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
         Ok(
             Self {
                 kp: key_pair,
-                hf: digestor,
+                hf: digest,
                 rd,
                 label,
                 is_blinding: is_enable_blinding,
@@ -214,14 +214,14 @@ impl<H, R> OAEP<H, R>
     /// # Note  
     /// 
     /// This method do not check the the validity of the `key_pair`, because the `key_pair` 
-    pub fn new(digestor: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
-        let h_len = (digestor.bits_len() + 7) >> 3;
+    pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        let h_len = (digest.bits_len() + 7) >> 3;
         
         if key_pair.modulus_len() <= ((h_len << 1) + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The modulus length is too short"));
         }
         
-        let inner = OAEPInner::new(digestor, rd, key_pair, label, is_enable_blinding)?;
+        let inner = OAEPInner::new(digest, rd, key_pair, label, is_enable_blinding)?;
         
         Ok(
             Self {
@@ -230,15 +230,25 @@ impl<H, R> OAEP<H, R>
         )
     }
     
-    pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digestor: H, mut rd: R, label: Vec<u8>, is_enbale_bliding: bool) -> Result<Self, CryptoError> {
-        let h_len = (digestor.bits_len() + 7) >> 3;
+    pub fn new(digest: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_bliding: bool) -> Result<Self, CryptoError> {
+        if key_pair.private_key().is_some() {
+            key_pair.private_key().unwrap().is_valid()?;
+        } else {
+            key_pair.public_key().is_valid()?;
+        }
+        
+        Self::new_uncheck(digest, rd, key_pair, label, is_enable_bliding)
+    }
+    
+    pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digest: H, mut rd: R, label: Vec<u8>, is_enbale_bliding: bool) -> Result<Self, CryptoError> {
+        let h_len = (digest.bits_len() + 7) >> 3;
         if bits_len <= ((h_len << 1) + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "bits len is too short"));
         }
         
         let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd)?;
         
-        Self::new(digestor, rd, KeyPair::from(key_), label, is_enbale_bliding)
+        Self::new_uncheck(digest, rd, KeyPair::from(key_), label, is_enbale_bliding)
     }
     
     pub fn max_message_len(&self) -> usize {
@@ -265,5 +275,22 @@ impl<H, R> Cipher for OAEP<H, R>
         let mut inner = self.get_oaepinner_mut();
         
         inner.decrypt_inner(dst, cipher_block)
+    }
+}
+
+impl<H, R> OAEP<H, R>
+    where H: Digest + Clone, R: IterSource<u32> {
+    pub fn digest_func(&self) -> H {
+        let mut h = self.get_oaepinner().hf.clone();
+        h.reset();
+        h
+    }
+}
+
+
+impl<H, R> OAEP<H, R>
+    where H: Digest, R: IterSource<u32> + Clone {
+    pub fn rand_source(&self) -> R {
+        self.get_oaepinner().rd.clone()
     }
 }

@@ -5,9 +5,10 @@
 
 mod rsa;
 
-pub use rsa::{PublicKey, PrivateKey};
+pub use rsa::{PublicKey, PrivateKey, KeyPair};
 
 mod oaep;
+pub use oaep::{OAEP};
 
 mod pkcs1;
 

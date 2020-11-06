@@ -93,6 +93,8 @@ impl<C: Cipher, P: Padding> ECB<C, P> {
 }
 
 impl<C: Cipher, P: 'static + Padding> Cipher for ECB<C, P> {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.cipher.block_size()
     }

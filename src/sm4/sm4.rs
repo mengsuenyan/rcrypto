@@ -111,6 +111,7 @@ impl SM4 {
 }
 
 impl Cipher for SM4 {
+    type Output = usize;
     fn block_size(&self) -> Option<usize> {
         Some(SM4_BLOCK_SIZE)
     }

@@ -49,6 +49,8 @@ impl TDES {
 }
 
 impl Cipher for TDES {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.des1.block_size()
     }

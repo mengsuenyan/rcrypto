@@ -134,6 +134,7 @@ impl<C, IV> Clone for OFB<C, IV>
 
 impl<C, IV> Cipher for OFB<C, IV> 
     where C: Cipher, IV: InitialVec<C> {
+    type Output = usize;
     fn block_size(&self) -> Option<usize> {
         self.cipher.block_size()
     }

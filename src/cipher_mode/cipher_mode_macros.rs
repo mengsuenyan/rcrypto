@@ -2,6 +2,7 @@ macro_rules! impl_cipher {
     ($Type0: ident, $INS: ident) => {
         impl<C, P> Cipher for $Type0<C, P>
             where C: Cipher, P: 'static + Padding {
+            type Output = usize;
             fn block_size(&self) -> Option<usize> {
                 self.$INS.block_size()
             }
@@ -34,6 +35,7 @@ macro_rules! impl_cipher_iv {
     ($Type0: ident, $INS: ident) => {
         impl<C, P, IV> Cipher for $Type0<C, P, IV>
             where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
+            type Output = usize;
             fn block_size(&self) -> Option<usize> {
                 self.$INS.block_size()
             }
@@ -68,6 +70,7 @@ macro_rules! impl_cipher_ofb {
     ($Type0: ident, $INS: ident) => {
         impl<C, IV> Cipher for $Type0<C, IV>
             where C: Cipher, IV: InitialVec<C> {
+            type Output = usize;
             fn block_size(&self) -> Option<usize> {
                 self.$INS.block_size()
             }

@@ -168,6 +168,8 @@ impl DES {
 }
 
 impl Cipher for DES {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         Some(mct::DES_BLOCK_SIZE)
     }

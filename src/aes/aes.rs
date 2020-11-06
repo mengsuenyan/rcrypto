@@ -44,6 +44,8 @@ impl AES {
 }
 
 impl Cipher for AES {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         Some(AES_BLOCK_SIZE)
     }

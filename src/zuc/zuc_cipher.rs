@@ -83,6 +83,7 @@ impl ZUCCipher {
 }
 
 impl Cipher for ZUCCipher {
+    type Output = usize;
     fn block_size(&self) -> Option<usize> {
         None
     }

@@ -182,6 +182,8 @@ impl<C, P, IV> CFB<C, P, IV>
 
 impl<C, P, IV> Cipher for CFB<C, P, IV>
     where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.cipher.block_size()
     }

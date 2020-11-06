@@ -104,6 +104,8 @@ impl<C, T>  CTR<C, T>
 
 impl<C, T> Cipher for CTR<C, T>
     where C: Cipher, T: Counter {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.cipher.block_size()
     }
@@ -160,6 +162,8 @@ impl<C, T>  CTRDecrypt<C, T>
 
 impl<C, T> Cipher for CTREncrypt<C, T>
     where C: Cipher, T: Counter {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.ctr.block_size()
     }
@@ -175,6 +179,8 @@ impl<C, T> Cipher for CTREncrypt<C, T>
 
 impl<C, T> Cipher for CTRDecrypt<C, T>
     where C: Cipher, T: Counter {
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.ctr.block_size()
     }

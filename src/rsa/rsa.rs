@@ -83,8 +83,6 @@ pub struct PrivateKey {
     precomputed: PrecomputedValues,
 }
 
-pub type KeyPair = PrivateKey;
-
 impl Clone for PrivateKey {
     fn clone(&self) -> Self {
         let mut primes = Vec::with_capacity(self.primes.len());
@@ -100,8 +98,41 @@ impl Clone for PrivateKey {
 }
 
 impl PublicKey {
+    pub fn from_bigint(modulus: &BigInt, exponent: &BigInt) -> Result<Self, CryptoError> {
+        if modulus.signnum() != Some(1) || exponent.signnum() != Some(1) {
+            Err(CryptoError::new(CryptoErrorKind::InvalidParameter, ""))
+        } else {
+            Self::from_nat(modulus.as_ref(), exponent.as_ref())
+        }
+    }
+    
+    pub fn from_nat(modulus: &Nat, exponent: &Nat) -> Result<Self, CryptoError> {
+        if modulus <= exponent || exponent < &3u32 {
+            Err(CryptoError::new(CryptoErrorKind::InvalidParameter, ""))
+        } else {
+            Ok(
+                Self {
+                    n: BigInt::from(modulus.clone()),
+                    e: BigInt::from(exponent.clone()),
+                }
+            )
+        }
+    }
+    
+    /// big endian  
+    pub fn from_be_bytes(modulus: &[u8], exponent: &[u8]) -> Result<Self, CryptoError> {
+        let (n, e) = (Nat::from_be_bytes(modulus), Nat::from_be_bytes(exponent));
+        Self::from_nat(&n, &e)
+    }
+    
+    /// little endian
+    pub fn from_le_bytes(modulus: &[u8], exponent: &[u8]) -> Result<Self, CryptoError> {
+        let (n, e) = (Nat::from_le_bytes(modulus), Nat::from_le_bytes(exponent));
+        Self::from_nat(&n, &e)
+    }
+    
     /// return this modulus(n) size in bytes
-    pub fn modulus_size(&self) -> usize {
+    pub fn modulus_len(&self) -> usize {
         (self.n.bits_len() + 7) >> 3
     }
     
@@ -132,9 +163,54 @@ impl PublicKey {
     }
 }
 
+pub struct KeyPair {
+    pub_key: Option<PublicKey>,
+    pri_key: Option<PrivateKey>,
+}
+
+impl KeyPair {
+    #[inline]
+    pub(super) fn private_key(&self) -> Option<&PrivateKey> {
+        self.pri_key.as_ref()
+    }
+    
+    #[inline]
+    pub(super) fn public_key(&self) -> &PublicKey {
+        if self.pri_key.is_some() {
+            self.pri_key.as_ref().unwrap().public_key()
+        } else {
+            self.pub_key.as_ref().unwrap()
+        }
+    }
+    
+    #[inline]
+    pub(super) fn modulus_len(&self) -> usize {
+        self.public_key().modulus_len()
+    }
+}
+
+impl From<PublicKey> for KeyPair {
+    /// used to verify signature
+    fn from(key_: PublicKey) -> Self {
+        Self {
+            pub_key: Some(key_),
+            pri_key: None,
+        }
+    }
+}
+
+impl From<PrivateKey> for KeyPair {
+    fn from(key_: PrivateKey) -> Self {
+        Self {
+            pub_key: None,
+            pri_key: Some(key_),
+        }
+    }
+}
+
 impl PrivateKey {
-    pub fn modulus_size(&self) -> usize {
-        self.pk.modulus_size()
+    pub fn modulus_len(&self) -> usize {
+        self.pk.modulus_len()
     }
     
     pub(super) fn modulus(&self) -> &BigInt {

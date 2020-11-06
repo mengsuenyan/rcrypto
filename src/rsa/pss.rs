@@ -189,13 +189,15 @@ impl<H, R> PSS<H, R>
     /// given hash function. salt is a random sequence of bytes whose length will be
     /// later used to verify the signature.
     fn sign_with_salt(&mut self, sign: &mut Vec<u8>, m_hash: &[u8], salt: &[u8]) -> Result<(), CryptoError> {
-        let n_bits = self.kp.modulus().bits_len();
+        let n_bits = self.kp.public_key().modulus().bits_len();
         self.emsa_pss_encode(sign, m_hash, n_bits - 1, salt)?;
         let m = BigInt::from_be_bytes(sign);
+        
+        let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSASSA-PSS: public key cannot be used for signing"))?;
         let c = if self.is_blinding {
-            self.kp.decrypt_and_check::<R>(&m, Some(&mut self.rd))
+            kp.decrypt_and_check::<R>(&m, Some(&mut self.rd))
         } else {
-            self.kp.decrypt_and_check::<R>(&m, None)
+            kp.decrypt_and_check::<R>(&m, None)
         }?;
         let mut s = c.to_be_bytes();
         let (new_len, old_len) = ((n_bits + 7) >> 3, s.len());
@@ -239,22 +241,5 @@ impl<H, R> PSS<H, R>
         em.rotate_right(em_len - old_len);
         
         self.emsa_pss_verify(em.as_slice(), m_hash, em_bits)
-    }
-}
-
-impl<H, R> Clone for PSS<H, R>
-    where H: Clone + Digest, R: Clone + rmath::rand::IterSource<u32> {
-    
-    fn clone(&self) -> Self {
-        let mut hf = self.hf.clone();
-        hf.reset();
-        
-        Self {
-            kp: self.kp.clone(),
-            slen: self.salt_len(),
-            hf,
-            rd: self.rd.clone(),
-            is_blinding: self.is_blinding,
-        }
     }
 }

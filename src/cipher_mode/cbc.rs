@@ -116,6 +116,8 @@ impl<C, P, IV> CBC<C, P, IV>
 impl<C, P, IV> Cipher for CBC<C, P, IV>
     where C: Cipher, P: 'static + Padding, IV: InitialVec<C> {
     
+    type Output = usize;
+    
     fn block_size(&self) -> Option<usize> {
         self.cipher.block_size()
     }

@@ -38,7 +38,7 @@ impl<H, R> PKCS1<H, R>
         
         self.kp.public_key().is_valid()?;
         
-        let k = self.kp.modulus_size();
+        let k = self.kp.modulus_len();
         if msg.len() > k.saturating_sub(11) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The msg length is too long"));
         }
@@ -74,13 +74,14 @@ impl<H, R> PKCS1<H, R>
     }
     
     fn decrypt(&mut self, msg: &mut Vec<u8>, cipher_txt: &[u8]) -> Result<(), CryptoError> {
-        let k = self.kp.modulus_size();
+        let k = self.kp.modulus_len();
         
         if k != cipher_txt.len() {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Invalid cipher text length"));
         }
         
-        self.kp.public_key().is_valid()?;
+        let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSAES-PKCS1: public key cannot be used for decryption"))?;
+        kp.public_key().is_valid()?;
         
         if k < 11 {
             return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The length of public key moudulus is too short"));
@@ -88,9 +89,9 @@ impl<H, R> PKCS1<H, R>
         
         let c = BigInt::from_be_bytes(cipher_txt);
         let m = if self.is_blinding {
-            self.kp.decrypt::<R>(&c, Some(&mut self.rd))
+            kp.decrypt::<R>(&c, Some(&mut self.rd))
         } else {
-            self.kp.decrypt::<R>(&c, None)
+            kp.decrypt::<R>(&c, None)
         }?;
         let mut em = m.to_be_bytes();
         let old_len = em.len();
@@ -131,7 +132,8 @@ impl<H, R> PKCS1<H, R>
     fn sign(&mut self, sign: &mut Vec<u8>, m_hash: &[u8]) -> Result<(), CryptoError> {
         let (mut prefix, h_len) = self.pkcs1_hash_info(m_hash.len())?;
         
-        let (t_len, k) = (prefix.len() + h_len, self.kp.modulus_size());
+        let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSASSA-PKCS1: public key cannot be used for signing"))?;
+        let (t_len, k) = (prefix.len() + h_len, kp.modulus_len());
         if k < (t_len + 11) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "The private modulus length is too short"));
         }
@@ -145,9 +147,9 @@ impl<H, R> PKCS1<H, R>
         
         let m = BigInt::from_be_bytes(sign.as_slice());
         let c = if self.is_blinding {
-            self.kp.decrypt_and_check::<R>(&m, Some(&mut self.rd))
+            kp.decrypt_and_check::<R>(&m, Some(&mut self.rd))
         } else {
-            self.kp.decrypt_and_check::<R>(&m, None)
+            kp.decrypt_and_check::<R>(&m, None)
         }?;
         
         let mut c = c.to_be_bytes();
@@ -161,7 +163,7 @@ impl<H, R> PKCS1<H, R>
     fn verify(&mut self, sign: &[u8], m_hash: &[u8]) -> Result<(), CryptoError> {
         let (prefix, h_len) = self.pkcs1_hash_info(m_hash.len())?;
         
-        let (t_len, k) = (prefix.len() + h_len, self.kp.public_key().modulus_size());
+        let (t_len, k) = (prefix.len() + h_len, self.kp.public_key().modulus_len());
         if k < (t_len + 11) {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "The public key modulus length is too short"));
         }

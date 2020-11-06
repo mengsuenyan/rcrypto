@@ -2,12 +2,14 @@
 //! 
 
 
-use crate::{Digest, CryptoError, CryptoErrorKind};
+use crate::{Digest, CryptoError, CryptoErrorKind, Cipher};
 use crate::rsa::rsa::KeyPair;
 use rmath::bigint::BigInt;
+use std::cell::Cell;
+use rmath::rand::IterSource;
+use crate::rsa::{PublicKey, PrivateKey};
 
-/// Encrypt scheme: RSAES-OAEP  
-pub struct OAEP<H, R> {
+struct OAEPInner<H, R> {
     kp: KeyPair,
     // hash function(message digest function)
     hf: H,
@@ -17,16 +19,33 @@ pub struct OAEP<H, R> {
     is_blinding: bool,
 }
 
-impl<H, R> OAEP<H, R>
-    where H: Digest, R: rmath::rand::IterSource<u32> {
-    pub fn set_label(&mut self, new_label: &[u8]) {
+/// Encrypt scheme: RSAES-OAEP  
+pub struct OAEP<H, R> {
+    inner: Cell<OAEPInner<H, R>>
+}
+
+impl<H, R> OAEPInner<H, R>
+    where H: Digest, R: IterSource<u32> {
+    fn new(digestor: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        Ok(
+            Self {
+                kp: key_pair,
+                hf: digestor,
+                rd,
+                label,
+                is_blinding: is_enable_blinding,
+            }
+        )
+    }
+    
+    fn set_label(&mut self, new_label: &[u8]) {
         self.label.clear();
         self.label.extend(new_label.iter());
     }
     
-    fn encrypt(&mut self, cipher_txt: &mut Vec<u8>, msg: &[u8]) -> Result<(), CryptoError> {
+    fn encrypt_inner(&mut self, cipher_txt: &mut Vec<u8>, msg: &[u8]) -> Result<(), CryptoError> {
         self.kp.public_key().is_valid()?;
-        let (k, h_len) = (self.kp.public_key().modulus_size(), (self.hf.bits_len() + 7) >> 3);
+        let (k, h_len) = (self.kp.public_key().modulus_len(), (self.hf.bits_len() + 7) >> 3);
         if msg.len() > (k - (h_len << 1) -2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The length of message is too long"));
         }
@@ -61,7 +80,7 @@ impl<H, R> OAEP<H, R>
         Self::mgf1_xor(em.as_mut_slice(), seed_bound, db_bound, h_len, &mut self.hf);
         let m = BigInt::from_be_bytes(em.as_slice());
         let c = self.kp.public_key().encrypt(&m);
-        
+       
         let mut out = c.to_be_bytes();
         cipher_txt.clear();
         if out.len() < k {
@@ -73,14 +92,16 @@ impl<H, R> OAEP<H, R>
         Ok(())
     }
     
-    fn decrypt(&mut self, msg: &mut Vec<u8>, cipher_text: &[u8]) -> Result<(), CryptoError> {
+    fn decrypt_inner(&mut self, msg: &mut Vec<u8>, cipher_text: &[u8]) -> Result<(), CryptoError> {
         if cipher_text.is_empty() {
             return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The cipher text is empty"));
         }
         
-        self.kp.public_key().is_valid()?;
+        let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSAES-OAEP: public key cannot be used for decryption"))?;
         
-        let (k, h_len) = (self.kp.public_key().modulus_size(), (self.hf.bits_len() + 7) >> 3);
+        kp.public_key().is_valid()?;
+        
+        let (k, h_len) = (kp.public_key().modulus_len(), (self.hf.bits_len() + 7) >> 3);
         if k < cipher_text.len() || k < ((h_len << 1) + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The public key modulus is too short"));
         }
@@ -88,9 +109,9 @@ impl<H, R> OAEP<H, R>
         let c = BigInt::from_be_bytes(cipher_text);
         
         let m = if self.is_blinding {
-            self.kp.decrypt::<R>(&c, Some(&mut self.rd))
+            kp.decrypt::<R>(&c, Some(&mut self.rd))
         } else {
-            self.kp.decrypt::<R>(&c, None)
+            kp.decrypt::<R>(&c, None)
         }?;
 
         let mut lhash = Vec::with_capacity(h_len);
@@ -154,5 +175,95 @@ impl<H, R> OAEP<H, R>
             
             count += 1;
         }
+    }
+}
+
+impl<H, R> OAEP<H, R> 
+    where H: Digest, R: IterSource<u32> {
+    
+    fn get_oaepinner(&self) -> & OAEPInner<H, R> {
+        unsafe {
+            & (*self.inner.as_ptr())
+        }
+    }
+    
+    fn get_oaepinner_mut(&self) -> &mut OAEPInner<H, R> {
+        unsafe {
+            &mut (*self.inner.as_ptr())
+        }
+    }
+    
+    /// digest message length in bytes
+    pub fn hashval_len(&self) -> usize {
+        (self.get_oaepinner().hf.bits_len() + 7) >> 3
+    }
+    
+    /// public key length in bytes
+    pub fn modulus_len(&self) -> usize {
+        self.public_key().modulus_len()
+    }
+    
+    pub fn public_key(&self) -> &PublicKey {
+        self.get_oaepinner().kp.public_key()
+    }
+    
+    pub fn set_label(&mut self, label: Vec<u8>) {
+        self.inner.get_mut().set_label(label.as_slice());
+    }
+    
+    /// # Note  
+    /// 
+    /// This method do not check the the validity of the `key_pair`, because the `key_pair` 
+    pub fn new(digestor: H, rd: R, key_pair: KeyPair, label: Vec<u8>, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        let h_len = (digestor.bits_len() + 7) >> 3;
+        
+        if key_pair.modulus_len() <= ((h_len << 1) + 2) {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The modulus length is too short"));
+        }
+        
+        let inner = OAEPInner::new(digestor, rd, key_pair, label, is_enable_blinding)?;
+        
+        Ok(
+            Self {
+                inner: Cell::new(inner)
+            }   
+        )
+    }
+    
+    pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digestor: H, mut rd: R, label: Vec<u8>, is_enbale_bliding: bool) -> Result<Self, CryptoError> {
+        let h_len = (digestor.bits_len() + 7) >> 3;
+        if bits_len <= ((h_len << 1) + 2) {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "bits len is too short"));
+        }
+        
+        let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd)?;
+        
+        Self::new(digestor, rd, KeyPair::from(key_), label, is_enbale_bliding)
+    }
+    
+    pub fn max_message_len(&self) -> usize {
+        self.modulus_len() - (self.hashval_len() << 1) - 2
+    }
+}
+
+impl<H, R> Cipher for OAEP<H, R> 
+    where H: Digest, R: IterSource<u32> {
+    type Output = ();
+    fn block_size(&self) -> Option<usize> {
+        None
+    }
+
+    /// the length of plaintext text should be less than or equal to `self.modulus_len() - 2*self.hashval_len() - 2`;  
+    fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<(), CryptoError> {
+        let mut inner = self.get_oaepinner_mut();
+        
+        inner.encrypt_inner(dst, plaintext_block)
+    }
+
+    /// the length of cipher text should be equal to `self.modulus_len()`;
+    fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<(), CryptoError> {
+        let mut inner = self.get_oaepinner_mut();
+        
+        inner.decrypt_inner(dst, cipher_block)
     }
 }

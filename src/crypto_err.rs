@@ -7,6 +7,10 @@ pub enum CryptoErrorKind {
     NotSupportUsage,
     RandError,
     UnpaddingNotMatch,
+    InvalidPublicKey,
+    InvalidPrivateKey,
+    VerificationFailed,
+    OuterErr,
     InnerErr,
 }
 
@@ -17,6 +21,10 @@ impl Debug for CryptoErrorKind {
             CryptoErrorKind::NotSupportUsage => write!(f, "{}", "NotSupportUsage"),
             CryptoErrorKind::RandError => write!(f, "{}", "RandError"),
             CryptoErrorKind::UnpaddingNotMatch => write!(f, "{}", "UnpaddingNotMatch"),
+            CryptoErrorKind::InvalidPublicKey => write!(f, "{}", "InvalidPublicKey"),
+            CryptoErrorKind::InvalidPrivateKey => write!(f, "{}", "InvalidPrivateKey"),
+            CryptoErrorKind::VerificationFailed => write!(f, "{}", "VerificationFailed"),
+            CryptoErrorKind::OuterErr => write!(f, "{}", "OuterErr: ErrorsCausedByExternalModule"),
             CryptoErrorKind::InnerErr => write!(f, "{}", "InnerError"),
         }
     }

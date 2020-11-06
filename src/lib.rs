@@ -45,3 +45,5 @@ pub use cmac::CMAC;
 mod kdf;
 
 mod dss;
+
+mod rsa;

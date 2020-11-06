@@ -48,7 +48,7 @@ pub trait DigestXOF: Digest {
 pub trait Signature {
     type Output;
     
-    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Output, CryptoError>;
+    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError>;
     
-    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Output, CryptoError>;
+    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError>;
 }

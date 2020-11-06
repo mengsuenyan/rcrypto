@@ -1,10 +1,12 @@
 //! [PKCS #1 v2.2](https://www.cnblogs.com/mengsuenyan/p/13796306.html#rsassa-pss)
 //! 
 
-use crate::{Digest, CryptoError, CryptoErrorKind};
-use crate::rsa::{PublicKey};
+use crate::{Digest, CryptoError, CryptoErrorKind, Signature};
+use crate::rsa::{PublicKey, PrivateKey};
 use rmath::bigint::BigInt;
 use crate::rsa::rsa::KeyPair;
+use rmath::rand::IterSource;
+use std::process::Output;
 
 /// Signature Scheme: RSASSA-PSS
 pub struct PSS<H, R> {
@@ -19,7 +21,7 @@ pub struct PSS<H, R> {
 }
 
 impl<H, R> PSS<H, R> 
-    where H: Digest + Clone, R: rmath::rand::IterSource<u32> {
+    where H: Digest + Clone, R: IterSource<u32> {
     
     pub fn digest_func(&self) -> H {
         let mut h = self.hf.clone();
@@ -29,21 +31,31 @@ impl<H, R> PSS<H, R>
 }
 
 impl<H, R> PSS<H, R>
+    where H: Digest, R: IterSource<u32> + Clone {
+    pub fn rand_source(&self) -> R {
+        self.rd.clone()
+    }
+}
+
+impl<H, R> PSS<H, R>
     where H: Digest, R: rmath::rand::IterSource<u32> {
+
+    /// digest message length in bytes
+    pub fn digest_len(&self) -> usize {
+        (self.hf.bits_len() + 7) >> 3
+    }
+
+    /// public key length in bytes
+    pub fn modulus_len(&self) -> usize {
+        self.kp.public_key().modulus_len()
+    }
     
     pub fn public_key(&self) -> &PublicKey {
         self.kp.public_key()
     }
     
-    /// `digestor`: message digest generator;  
-    /// `rd`: random number generator;  
-    /// `salt_len` the length of salt in bytes, `None` means the salt length equal 
-    /// to the `digestor.len()`, `Some(0)` means that the salt length compute from the modulus bit length of public key. 
-    /// `Some(x)` means that the salt length equal to `x`;  
-    /// `is_enbale_blind`: enable RSA blinding;
-    pub fn new(digestor: H, rd: R, key_pair: KeyPair, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self, CryptoError> {
-        let h_len = (digestor.bits_len() + 7) >> 3;
-        let salt_len = match salt_len {
+    fn compute_salt_len(salt_len: Option<usize>) -> usize {
+        match salt_len {
             Some(x) => {
                 if x > 0 {
                     x
@@ -54,17 +66,59 @@ impl<H, R> PSS<H, R>
             None => {
                 h_len
             }
-        };
+        }
+    }
+    
+    /// `digest`: message digest generator;  
+    /// `rd`: random number generator;  
+    /// `salt_len` the length of salt in bytes, `None` means the salt length equal 
+    /// to the `digest.len()`, `Some(0)` means that the salt length compute from the modulus bit length of public key. 
+    /// `Some(x)` means that the salt length equal to `x`;  
+    /// `is_enbale_blind`: enable RSA blinding;
+    pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self, CryptoError> {
+        let h_len = (digest.bits_len() + 7) >> 3;
+        let salt_len = Self::compute_salt_len(salt_len);
+        
+        let em_len = (key_pair.modulus_len() - 1 + 7) >> 3;
+        if em_len < (h_len + salt_len + 2) {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The salt length is too long, or the modulus length is too short"));
+        }
         
         Ok(
             Self {
                 kp: key_pair,
                 slen: salt_len,
-                hf: digestor,
+                hf: digest,
                 rd,
                 is_blinding: is_enable_blind,
             }
         )
+    }
+    
+    pub fn new(digest: H, rd: R, key_pair: KeyPair, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self, CryptoError> {
+        if key_pair.private_key().is_some() {
+            key_pair.private_key().unwrap().is_valid()?;
+        } else {
+            key_pair.public_key().is_valid()?;
+        }
+        
+        Self::new_uncheck(digest, rd, key_pair, salt_len, is_enable_blind)
+    }
+    
+    pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digest: H, mut rd: R, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self,CryptoError> {
+        let (h_len, salt_len) = ((digest.bits_len() + 7) >> 3, Self::compute_salt_len(salt_len));
+        if ((bits_len.saturating_sub(1) + 7) >> 3) < (h_len + salt_len + 2) {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Ths bits_len is too small"));
+        }
+        
+        let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd);
+        
+        Self::new_uncheck(digest, rd, KeyPair::from(key_), Some(salt_len), is_enable_blind)
+    }
+
+    /// maximum message length in byte allowed to be encrypted
+    pub fn max_message_len(&self) -> usize {
+        ((self.modulus_len() - 1) + 7) >> 3
     }
     
     #[inline]
@@ -208,7 +262,7 @@ impl<H, R> PSS<H, R>
         Ok(())
     }
     
-    fn sign(&mut self, sign: &mut Vec<u8>, m_hash: &[u8]) -> Result<(), CryptoError> {
+    fn sign_inner(&mut self, sign: &mut Vec<u8>, m_hash: &[u8]) -> Result<(), CryptoError> {
         let salt_len = self.salt_len();
         let mut salt = Vec::with_capacity(salt_len);
         self.rd.iter_mut().take((salt_len + 3) >> 2).for_each(|x| {
@@ -219,7 +273,7 @@ impl<H, R> PSS<H, R>
         self.sign_with_salt(sign, m_hash, salt.as_slice())
     }
     
-    fn verify(&mut self, sign: &[u8], m_hash: &[u8]) -> Result<(), CryptoError> {
+    fn verify_inner(&mut self, sign: &[u8], m_hash: &[u8]) -> Result<(), CryptoError> {
         let n_bits = self.kp.public_key().modulus().bits_len();
         
         if sign.len() != ((n_bits + 7) >> 3) {
@@ -241,5 +295,21 @@ impl<H, R> PSS<H, R>
         em.rotate_right(em_len - old_len);
         
         self.emsa_pss_verify(em.as_slice(), m_hash, em_bits)
+    }
+}
+
+
+impl<H, R> Signature for PSS<H, R>
+    where H: Digest, R: IterSource<u32> {
+    type Output = ();
+
+    /// the length of message should be less than or equal to `self.digest_len() + self.salt_len() + 2`
+    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.sign_inner(signature, message)
+    }
+
+    /// the length of signature should be equal to `self.modulus_len()`
+    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.verify_inner(message, signature)
     }
 }

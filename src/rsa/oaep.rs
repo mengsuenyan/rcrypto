@@ -194,7 +194,7 @@ impl<H, R> OAEP<H, R>
     }
     
     /// digest message length in bytes
-    pub fn hashval_len(&self) -> usize {
+    pub fn digest_len(&self) -> usize {
         (self.get_oaepinner().hf.bits_len() + 7) >> 3
     }
     
@@ -243,7 +243,7 @@ impl<H, R> OAEP<H, R>
     pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digest: H, mut rd: R, label: Vec<u8>, is_enbale_bliding: bool) -> Result<Self, CryptoError> {
         let h_len = (digest.bits_len() + 7) >> 3;
         if bits_len <= ((h_len << 1) + 2) {
-            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "bits len is too short"));
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "bits len is too small"));
         }
         
         let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd)?;
@@ -251,8 +251,9 @@ impl<H, R> OAEP<H, R>
         Self::new_uncheck(digest, rd, KeyPair::from(key_), label, is_enbale_bliding)
     }
     
+    /// maximum message length in byte allowed to be encrypted
     pub fn max_message_len(&self) -> usize {
-        self.modulus_len() - (self.hashval_len() << 1) - 2
+        self.modulus_len() - (self.digest_len() << 1) - 2
     }
 }
 
@@ -263,7 +264,7 @@ impl<H, R> Cipher for OAEP<H, R>
         None
     }
 
-    /// the length of plaintext text should be less than or equal to `self.modulus_len() - 2*self.hashval_len() - 2`;  
+    /// the length of plaintext text should be less than or equal to `self.modulus_len() - 2*self.digest_len() - 2`;  
     fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<(), CryptoError> {
         let mut inner = self.get_oaepinner_mut();
         

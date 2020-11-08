@@ -309,7 +309,7 @@ impl<H, R> Signature for PSS<H, R>
     }
 
     /// the length of signature should be equal to `self.modulus_len()`
-    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.verify_inner(message, signature)
+    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.verify_inner(signature, message)
     }
 }

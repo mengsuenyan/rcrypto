@@ -49,5 +49,5 @@ pub trait Signature {
     
     fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError>;
     
-    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError>;
+    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError>;
 }

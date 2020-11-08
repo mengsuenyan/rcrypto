@@ -82,17 +82,17 @@ impl<H, R> PKCS1Inner<H, R>
     
     fn decrypt(&mut self, msg: &mut Vec<u8>, cipher_txt: &[u8]) -> Result<(), CryptoError> {
         let k = self.kp.modulus_len();
-        
+
+        if k <= 11 {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The length of public key moudulus is too short"));
+        }
+
         if k != cipher_txt.len() {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Invalid cipher text length"));
         }
         
         let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSAES-PKCS1: public key cannot be used for decryption"))?;
         kp.public_key().is_valid()?;
-        
-        if k <= 11 {
-            return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The length of public key moudulus is too short"));
-        }
         
         let c = BigInt::from_be_bytes(cipher_txt);
         let m = if self.is_blinding {
@@ -108,8 +108,8 @@ impl<H, R> PKCS1Inner<H, R>
         } else {
             em.truncate(k);
         };
-        
-        if em.len() <= 11 || em[0] != 0x00 || em[2] != 0x02 {
+
+        if em.len() <= 11 || em[0] != 0x00 || em[1] != 0x02 {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid message encoding format"));
         }
         
@@ -137,7 +137,8 @@ impl<H, R> PKCS1Inner<H, R>
 impl<H, R> PKCS1Inner<H, R> 
     where H: Digest + Any, R: IterSource<u32> {
     fn sign(&mut self, sign: &mut Vec<u8>, m_hash: &[u8]) -> Result<(), CryptoError> {
-        let (mut prefix, h_len) = self.pkcs1_hash_info(m_hash.len())?;
+        let h_len = (self.hf.bits_len() + 7) >> 3;
+        let mut prefix = self.pkcs1_hash_info()?;
         
         let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSASSA-PKCS1: public key cannot be used for signing"))?;
         let (t_len, k) = (prefix.len() + h_len, kp.modulus_len());
@@ -145,12 +146,17 @@ impl<H, R> PKCS1Inner<H, R>
             return Err(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "The private modulus length is too short"));
         }
         
+        // EM = 0x00 || 0x01 || PS || 0x00 || T
         sign.clear();
         sign.push(0x00);
         sign.push(0x01);
         sign.extend(std::iter::repeat(0xff).take(k - t_len - 3));
+        sign.push(0x00);
         sign.append(&mut prefix);
-        sign.extend(m_hash.iter());
+        self.hf.reset();
+        self.hf.write(m_hash);
+        self.hf.checksum(&mut prefix);
+        sign.append(&mut prefix);
         
         let m = BigInt::from_be_bytes(sign.as_slice());
         let c = if self.is_blinding {
@@ -168,7 +174,8 @@ impl<H, R> PKCS1Inner<H, R>
     }
     
     fn verify(&mut self, sign: &[u8], m_hash: &[u8]) -> Result<(), CryptoError> {
-        let (prefix, h_len) = self.pkcs1_hash_info(m_hash.len())?;
+        let h_len = (self.hf.bits_len() + 7) >> 3;
+        let mut prefix = self.pkcs1_hash_info()?;
         
         let (t_len, k) = (prefix.len() + h_len, self.kp.public_key().modulus_len());
         if k < (t_len + 11) {
@@ -186,11 +193,18 @@ impl<H, R> PKCS1Inner<H, R>
             em.truncate(k);
         };
         
-        if em[0] != 0x00 || em[1] != 0x01 || &em[(k-t_len)..(k-h_len)] != prefix.as_slice() || em[k-t_len-1] != 0x00 ||
-            &em[(k-h_len)..] != m_hash {
+        if em[0] != 0x00 || em[1] != 0x01 || &em[(k-t_len)..(k-h_len)] != prefix.as_slice() || em[k-t_len-1] != 0x00 {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid message encoding format"));
         }
         
+        self.hf.reset();
+        self.hf.write(m_hash);
+        let m_hash = &mut prefix;
+        self.hf.checksum(m_hash);
+        if &em[(k-h_len)..] != m_hash.as_slice() {
+            return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid message encoding format"));
+        }
+
         for &e in em.iter().skip(2).take(k-t_len-3) {
             if e != 0xff {
                 return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid message encoding format"));
@@ -226,13 +240,8 @@ impl<H, R> PKCS1Inner<H, R>
         }
     }
     
-    fn pkcs1_hash_info(&self, h_len: usize) -> Result<(Vec<u8>, usize), CryptoError> {
-        let len = (self.hf.bits_len() + 7) >> 3;
-        if len != h_len {
-            Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Invalid m_hash length"))
-        } else {
-            Self::pkcs1_hash_prefix().map(|x| {(x, len)})
-        }
+    fn pkcs1_hash_info(&self) -> Result<Vec<u8>, CryptoError> {
+        Self::pkcs1_hash_prefix().map(|x| {x})
     }
 } 
 
@@ -331,7 +340,15 @@ impl<H, R> PKCS1<H, R>
 
     /// maximum message length in byte  allowed to be signing
     pub fn sign_max_message_len(&self) -> usize {
-        self.modulus_len().saturating_sub(11).saturating_sub(Self::pkcs1_hash_prefix_len())
+        #[cfg(target_pointer_width = "32")]
+        {
+            u32::MAX as usize
+        }
+        
+        #[cfg(target_pointer_width = "64")]
+        {
+            u64::MAX as usize
+        }
     }
     
     pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, is_enable_blinding: bool) -> Result<Self, CryptoError> {
@@ -408,7 +425,7 @@ impl<H, R> Signature for PKCS1<H, R>
     }
 
     /// the length of signature should be equal to `self.modulus_len()`
-    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.inner.get_mut().verify(message, signature)
+    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.inner.get_mut().verify(signature, message)
     }
 }

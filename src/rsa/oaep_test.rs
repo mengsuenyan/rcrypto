@@ -5,13 +5,13 @@ use crate::rsa::{PublicKey, OAEP, KeyPair, PrivateKey};
 use rmath::rand::{DefaultSeed, CryptoRand, Source, RandError, RandErrKind, Seed, IterSource, Iter};
 
 #[derive(Clone)]
-struct TestRand {
+pub(super) struct TestRand {
     rd: Vec<u32>,
 	cur_idx: usize,
 }
 
 impl TestRand {
-	fn new(rd: &[u8]) -> Self {
+	pub(super) fn new(rd: &[u8]) -> Self {
 		let mut buf= Vec::with_capacity((rd.len() + 3) >> 2);
 		let mut ele = 0;
         for (i, &e) in rd.iter().enumerate() {

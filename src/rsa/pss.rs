@@ -76,9 +76,9 @@ impl<H, R> PSS<H, R>
     /// `is_enbale_blind`: enable RSA blinding;
     pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self, CryptoError> {
         let h_len = (digest.bits_len() + 7) >> 3;
-        let salt_len = Self::compute_salt_len(salt_len, h_len, key_pair.modulus_len());
-        
-        let em_len = (key_pair.modulus_len() - 1 + 7) >> 3;
+        let salt_len = Self::compute_salt_len(salt_len, h_len, key_pair.public_key().modulus().bits_len());
+
+        let em_len = (key_pair.public_key().modulus().bits_len() - 1 + 7) >> 3;
         if em_len < (h_len + salt_len + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The salt length is too long, or the modulus length is too short"));
         }
@@ -118,7 +118,15 @@ impl<H, R> PSS<H, R>
 
     /// maximum message length in byte allowed to be signature
     pub fn max_message_len(&self) -> usize {
-        ((self.modulus_len() - 1) + 7) >> 3
+        #[cfg(target_pointer_width = "32")]
+        {
+            u32::MAX as usize
+        }
+        
+        #[cfg(target_pointer_width = "64")]
+        {
+            u64::MAX as usize
+        }
     }
     
     #[inline]
@@ -146,11 +154,8 @@ impl<H, R> PSS<H, R>
     }
     
     /// `m_hash = Hash(Message)`
-    fn emsa_pss_encode(&mut self, em: &mut Vec<u8>, m_hash: &[u8], em_bits: usize, salt: &[u8]) -> Result<(), CryptoError> {
+    pub(super) fn emsa_pss_encode(&mut self, em: &mut Vec<u8>, m_hash: &[u8], em_bits: usize, salt: &[u8]) -> Result<(), CryptoError> {
         let (h_len, s_len, em_len) = ((self.hf.bits_len() + 7) >> 3, salt.len(), (em_bits + 7) >> 3);
-        if m_hash.len() != h_len {
-            return Err(CryptoError::new(CryptoErrorKind::InnerErr, format!("the length of m_hash is not equal to h_len, {} != {}", m_hash.len(), h_len)));
-        }
         
         if em_len < (h_len + s_len + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InnerErr, format!("key size too small: {} < {}", em_len, h_len + s_len + 2)));
@@ -159,11 +164,18 @@ impl<H, R> PSS<H, R>
         em.clear();
         em.resize(em_len, 0);
         
-        let mut buf = Vec::with_capacity(8);
-        buf.resize(8, 0);
+        let mut buf = Vec::with_capacity(h_len);
         self.hf.reset();
-        self.hf.write(buf.as_ref());
         self.hf.write(m_hash);
+        self.hf.checksum(&mut buf);
+        if h_len != buf.len() {
+            return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid hash length"));
+        }
+        
+        const PREFIX: [u8;8] = [0u8;8];
+        self.hf.reset();
+        self.hf.write(PREFIX.as_ref());
+        self.hf.write(buf.as_slice());
         self.hf.write(salt);
         self.hf.checksum(&mut buf);
         
@@ -172,7 +184,7 @@ impl<H, R> PSS<H, R>
         (&mut em.as_mut_slice()[h_start..h_end]).copy_from_slice(buf.as_slice());
         
         em[em_len - s_len - h_len - 2] = 0x01;
-        (&mut em.as_mut_slice()[db_start..db_end]).copy_from_slice(salt);
+        (&mut em.as_mut_slice()[(db_end - s_len)..db_end]).copy_from_slice(salt);
         
         Self::mgf1_xor(&mut em.as_mut_slice()[db_start..db_end], buf.as_slice(), &mut self.hf);
         
@@ -183,9 +195,15 @@ impl<H, R> PSS<H, R>
     }
     
     /// The method will auto find salt length when the `s_len` is `None`;
-    fn emsa_pss_verify(&mut self, em: &[u8], m_hash: &[u8], em_bits: usize) -> Result<(), CryptoError> {
+    pub(super) fn emsa_pss_verify(&mut self, em: &[u8], m_hash: &[u8], em_bits: usize) -> Result<(), CryptoError> {
         let h_len = (self.hf.bits_len() + 7) >> 3;
         
+        let mut buf = Vec::with_capacity(h_len);
+        self.hf.reset();
+        self.hf.write(m_hash);
+        self.hf.checksum(&mut buf);
+        
+        let m_hash = buf.as_slice();
         if h_len != m_hash.len() {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid hash length"));
         }

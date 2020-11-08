@@ -320,24 +320,6 @@ impl<H, R> PKCS1<H, R>
         }
     }
 
-    fn pkcs1_hash_prefix_len() -> usize {
-        if TypeId::of::<H>() == TypeId::of::<MD5>() {
-            18
-        } else if TypeId::of::<H>() == TypeId::of::<SHA1>() {
-            15
-        } else if TypeId::of::<H>() == TypeId::of::<SHA224>() {
-            19
-        } else if TypeId::of::<H>() == TypeId::of::<SHA256>() {
-            19
-        } else if TypeId::of::<H>() == TypeId::of::<SHA384>() {
-            19
-        } else if TypeId::of::<H>() == TypeId::of::<SHA512>() {
-            19
-        } else {
-            unreachable!(format!("not suuport {}", std::any::type_name::<H>()));
-        }
-    }
-
     /// maximum message length in byte  allowed to be signing
     pub fn sign_max_message_len(&self) -> usize {
         #[cfg(target_pointer_width = "32")]

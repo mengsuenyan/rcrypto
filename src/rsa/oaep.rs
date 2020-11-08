@@ -59,12 +59,13 @@ impl<H, R> OAEPInner<H, R>
         let (seed_bound, db_bound) = ((1, h_len + 1), (1+h_len, k));
         em.push(0x00u8);
         // seed
-        self.rd.iter_mut().take(h_len).for_each(|e| {
+        self.rd.iter_mut().take((h_len + 3) >> 1).for_each(|e| {
             em.push(((e >> 24) & 0xff) as u8);
             em.push(((e >> 16) & 0xff) as u8);
             em.push(((e >> 8) & 0xff) as u8);
             em.push((e & 0xff) as u8);
         });
+        em.truncate(h_len + 1);
         
         // db = lhash || ps || 0x01 || M
         em.append(&mut lhash);
@@ -153,7 +154,7 @@ impl<H, R> OAEPInner<H, R>
         }
         
         msg.clear();
-        msg.extend((&em[(idx+1)..]).iter());
+        msg.extend((&em[idx..]).iter());
         Ok(())
     }
     

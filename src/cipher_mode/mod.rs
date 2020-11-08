@@ -1,4 +1,4 @@
-//! https://www.cnblogs.com/mengsuenyan/p/12704365.html
+//! [块加密工作模式](https://www.cnblogs.com/mengsuenyan/p/12704365.html)
 
 mod pond;
 pub use pond::{Pond, DecryptStream, EncryptStream};

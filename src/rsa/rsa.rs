@@ -7,6 +7,7 @@
 use rmath::bigint::{BigInt, Nat};
 use crate::{CryptoError, CryptoErrorKind};
 use rmath::rand::IterSource;
+use std::fmt::{Display, Formatter, Debug};
 
 pub struct PublicKey {
     // modulus, $n = p \cdot q$
@@ -139,6 +140,7 @@ impl PublicKey {
         &self.n
     }
     
+    /// public key exponent
     pub(super) fn exponent(&self) -> &BigInt {
         &self.e
     }
@@ -220,8 +222,25 @@ impl PrivateKey {
         &self.pk
     }
     
+    /// private key exponent
     pub(super) fn exponent(&self) -> &BigInt {
         &self.d
+    }
+    
+    /// only used for test
+    #[allow(unused)]
+    pub(super) fn from_bigint_uncheck(n: &BigInt, e: &BigInt, d: &BigInt, primes: &Vec<BigInt>) -> Result<Self, CryptoError> {
+        let pk = PublicKey::from_bigint(n, e)?;
+        let mut p = Vec::with_capacity(primes.len());
+        primes.iter().for_each(|e| {p.push(e.deep_clone());});
+        Ok(
+            Self {
+                pk,
+                d: d.deep_clone(),
+                primes: p,
+                precomputed: PrecomputedValues::nan(),
+            }
+        )
     }
     
     /// RSADP: RSA decrypt primitive  
@@ -336,7 +355,7 @@ impl PrivateKey {
         self.public_key().is_valid()?;
         
         let bigone = BigInt::from(1u32);
-        let mut modulus = BigInt::from(0u32);
+        let mut modulus = BigInt::from(1u32);
         for prime in self.primes.iter() {
             if prime <= &bigone {
                 return Err(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "Invalid prime value"));
@@ -390,13 +409,13 @@ impl PrivateKey {
     /// 
     /// `prime_test_round_num`(n) means the number of test rounds, for any odd number that great than 2 and positive integer n, the probability of error 
     /// in MillerRabinPrimeTest is at most $2^{-n}$.
-    pub fn generate_multi_prime_key<R: IterSource<u32>>(n_primes: usize, bits: usize, prime_test_round_num: usize, rd: &mut R) -> Result<PrivateKey, CryptoError> {
+    pub fn generate_multi_prime_key<R: IterSource<u32>>(n_primes: usize, bits_len: usize, prime_test_round_num: usize, rd: &mut R) -> Result<PrivateKey, CryptoError> {
         if n_primes < 2 {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "n_primes must be great or equal to 2"));
         }
         
-        if bits < 64 {
-            let prime_limit= (1u64 << (bits / n_primes)) as f64;
+        if bits_len < 64 {
+            let prime_limit= (1u64 << (bits_len / n_primes)) as f64;
             // pi approximates the number of primes less than primeLimit
             let mut pi = prime_limit / (prime_limit.ln() - 1f64);
             
@@ -416,7 +435,7 @@ impl PrivateKey {
         let mut primes = Vec::with_capacity(n_primes);
         let (pri_exp, modulus) = 'next_set_of_primes: loop {
             primes.clear();
-            let mut cbits = bits;
+            let mut cbits = bits_len;
             // crypto/rand should set the top two bits in each prime.
             // Thus each prime has the form
             //   p_i = 2^bitlen(p_i) × 0.11... (in base 2).
@@ -441,7 +460,7 @@ impl PrivateKey {
                         return Err(CryptoError::new(CryptoErrorKind::OuterErr, e));
                     }
                 };
-                
+
                 cbits -= prime.bits_len();
                 primes.push(prime);
             }
@@ -459,7 +478,7 @@ impl PrivateKey {
                 totient *= pm1;
             }
             
-            if n.bits_len() != bits {
+            if n.bits_len() != bits_len {
                 // This should never happen for n_primes == 2 because
                 // crypto/rand should set the top two bits in each prime.
                 // For n_primes > 2 we hope it does not happen often.
@@ -516,6 +535,18 @@ impl PrecomputedValues {
             crt_values,
         }
     }
+    
+    /// only used for test
+    #[allow(unused)]
+    fn nan() -> Self {
+        let n = Vec::new();
+        Self {
+            d_p: BigInt::from_be_bytes(n.as_slice()),
+            d_q: BigInt::from_le_bytes(n.as_slice()),
+            q_inv: BigInt::from_le_bytes(n.as_slice()),
+            crt_values: Vec::new(),
+        }
+    }
 }
 
 
@@ -526,5 +557,17 @@ impl CRTValue {
             coeff,
             r
         }
+    }
+}
+
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "N={:#x}; E={:#x}", self.n, self.e)
+    }
+}
+
+impl Debug for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "N={:#x}; E={:#x}", self.n, self.e)
     }
 }

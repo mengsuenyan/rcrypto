@@ -18,3 +18,4 @@ A rust cryptography library
 - [x] CMAC;
 - [x] ZUC/ZUCCipher/ZUCMac;
 - [x] SM4;
+- [ ] RSA;

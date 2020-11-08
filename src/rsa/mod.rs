@@ -1,6 +1,6 @@
 //! https://www.cnblogs.com/mengsuenyan/p/13796306.html#i2osp
 //! 
-//! reference: PKCS v2.2
+//! reference: PKCS v2.2 standard
 
 
 mod rsa;

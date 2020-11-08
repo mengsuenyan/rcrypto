@@ -1,7 +1,6 @@
 //! A trait for cryptography
 
 use crate::crypto_err::CryptoError;
-use std::process::Output;
 
 /// A trait for cryptography algorithms
 pub trait Cipher {

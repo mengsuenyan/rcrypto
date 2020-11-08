@@ -11,6 +11,7 @@ mod oaep;
 pub use oaep::{OAEP};
 
 mod pkcs1;
+pub use pkcs1::{PKCS1};
 
 mod pss;
 pub use pss::{PSS};

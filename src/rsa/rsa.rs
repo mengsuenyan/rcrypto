@@ -7,7 +7,6 @@
 use rmath::bigint::{BigInt, Nat};
 use crate::{CryptoError, CryptoErrorKind};
 use rmath::rand::IterSource;
-use std::ops::{Add, Mul};
 
 pub struct PublicKey {
     // modulus, $n = p \cdot q$

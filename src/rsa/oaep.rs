@@ -266,14 +266,14 @@ impl<H, R> Cipher for OAEP<H, R>
 
     /// the length of plaintext text should be less than or equal to `self.modulus_len() - 2*self.digest_len() - 2`;  
     fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<(), CryptoError> {
-        let mut inner = self.get_oaepinner_mut();
+        let inner = self.get_oaepinner_mut();
         
         inner.encrypt_inner(dst, plaintext_block)
     }
 
     /// the length of cipher text should be equal to `self.modulus_len()`;
     fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<(), CryptoError> {
-        let mut inner = self.get_oaepinner_mut();
+        let inner = self.get_oaepinner_mut();
         
         inner.decrypt_inner(dst, cipher_block)
     }

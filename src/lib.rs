@@ -46,4 +46,4 @@ mod kdf;
 
 mod dss;
 
-mod rsa;
+pub mod rsa;

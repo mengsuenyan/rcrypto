@@ -6,7 +6,6 @@ use crate::rsa::{PublicKey, PrivateKey};
 use rmath::bigint::BigInt;
 use crate::rsa::rsa::KeyPair;
 use rmath::rand::IterSource;
-use std::process::Output;
 
 /// Signature Scheme: RSASSA-PSS
 pub struct PSS<H, R> {
@@ -38,7 +37,7 @@ impl<H, R> PSS<H, R>
 }
 
 impl<H, R> PSS<H, R>
-    where H: Digest, R: rmath::rand::IterSource<u32> {
+    where H: Digest, R: IterSource<u32> {
 
     /// digest message length in bytes
     pub fn digest_len(&self) -> usize {
@@ -54,13 +53,13 @@ impl<H, R> PSS<H, R>
         self.kp.public_key()
     }
     
-    fn compute_salt_len(salt_len: Option<usize>) -> usize {
+    fn compute_salt_len(salt_len: Option<usize>, h_len: usize, bits_len: usize) -> usize {
         match salt_len {
             Some(x) => {
                 if x > 0 {
                     x
                 } else {
-                    ((key_pair.public_key().modulus().bits_len() + 7) >> 3).saturating_sub(2 + h_len)
+                    ((bits_len + 7) >> 3).saturating_sub(2 + h_len)
                 }
             },
             None => {
@@ -77,7 +76,7 @@ impl<H, R> PSS<H, R>
     /// `is_enbale_blind`: enable RSA blinding;
     pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self, CryptoError> {
         let h_len = (digest.bits_len() + 7) >> 3;
-        let salt_len = Self::compute_salt_len(salt_len);
+        let salt_len = Self::compute_salt_len(salt_len, h_len, key_pair.modulus_len());
         
         let em_len = (key_pair.modulus_len() - 1 + 7) >> 3;
         if em_len < (h_len + salt_len + 2) {
@@ -106,17 +105,18 @@ impl<H, R> PSS<H, R>
     }
     
     pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digest: H, mut rd: R, salt_len: Option<usize>, is_enable_blind: bool) -> Result<Self,CryptoError> {
-        let (h_len, salt_len) = ((digest.bits_len() + 7) >> 3, Self::compute_salt_len(salt_len));
+        let h_len = (digest.bits_len() + 7) >> 3;
+        let salt_len = Self::compute_salt_len(salt_len, h_len, bits_len);
         if ((bits_len.saturating_sub(1) + 7) >> 3) < (h_len + salt_len + 2) {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Ths bits_len is too small"));
         }
         
-        let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd);
+        let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd)?;
         
         Self::new_uncheck(digest, rd, KeyPair::from(key_), Some(salt_len), is_enable_blind)
     }
 
-    /// maximum message length in byte allowed to be encrypted
+    /// maximum message length in byte allowed to be signature
     pub fn max_message_len(&self) -> usize {
         ((self.modulus_len() - 1) + 7) >> 3
     }

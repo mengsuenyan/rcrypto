@@ -1,15 +1,16 @@
 //! [PKCS #1 v2.2](https://www.cnblogs.com/mengsuenyan/p/13796306.html#rsassa-pss)
 //! 
 
-use crate::{Digest, CryptoErrorKind, CryptoError, MD5};
+use crate::{Digest, CryptoErrorKind, CryptoError, MD5, Cipher, Signature};
 use crate::rsa::rsa::KeyPair;
 use rmath::bigint::BigInt;
 use std::any::{TypeId, Any};
 use crate::sha::{SHA1, SHA224, SHA384, SHA256, SHA512};
+use std::cell::Cell;
+use rmath::rand::IterSource;
+use crate::rsa::{PublicKey, PrivateKey};
 
-/// Signature Scheme: RSASSA-PKCS1;  
-/// Encrypt Scheme: RSAES-PKCS1;  
-pub struct PKCS1<H, R> {
+struct PKCS1Inner<H, R> {
     kp: KeyPair,
     // session_key_len: usize,
     rd: R,
@@ -17,14 +18,20 @@ pub struct PKCS1<H, R> {
     is_blinding: bool,
 }
 
-impl<H, R> PKCS1<H, R>
-    where H: Digest, R: rmath::rand::IterSource<u32> {
-    pub fn new(digestor: H, rd: R, key_pair: KeyPair, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+/// Signature Scheme: RSASSA-PKCS1;  
+/// Encrypt Scheme: RSAES-PKCS1;  
+pub struct PKCS1<H, R> {
+    inner: Cell<PKCS1Inner<H, R>>,
+}
+
+impl<H, R> PKCS1Inner<H, R>
+    where H: Digest, R: IterSource<u32> {
+    fn new(digest: H, rd: R, key_pair: KeyPair, is_enable_blinding: bool) -> Result<Self, CryptoError> {
         Ok(
             Self {
                 kp: key_pair,
                 rd,
-                hf: digestor,
+                hf: digest,
                 is_blinding: is_enable_blinding,
             }
         )
@@ -83,7 +90,7 @@ impl<H, R> PKCS1<H, R>
         let kp = self.kp.private_key().ok_or(CryptoError::new(CryptoErrorKind::InvalidPrivateKey, "RSAES-PKCS1: public key cannot be used for decryption"))?;
         kp.public_key().is_valid()?;
         
-        if k < 11 {
+        if k <= 11 {
             return Err(CryptoError::new(CryptoErrorKind::InvalidPublicKey, "The length of public key moudulus is too short"));
         }
         
@@ -102,7 +109,7 @@ impl<H, R> PKCS1<H, R>
             em.truncate(k);
         };
         
-        if em.len() < 11 || em[0] != 0x00 || em[2] != 0x02 {
+        if em.len() <= 11 || em[0] != 0x00 || em[2] != 0x02 {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, "Invalid message encoding format"));
         }
         
@@ -127,8 +134,8 @@ impl<H, R> PKCS1<H, R>
     
 }
 
-impl<H, R> PKCS1<H, R> 
-    where H: Digest + Any, R: rmath::rand::IterSource<u32> {
+impl<H, R> PKCS1Inner<H, R> 
+    where H: Digest + Any, R: IterSource<u32> {
     fn sign(&mut self, sign: &mut Vec<u8>, m_hash: &[u8]) -> Result<(), CryptoError> {
         let (mut prefix, h_len) = self.pkcs1_hash_info(m_hash.len())?;
         
@@ -201,7 +208,7 @@ impl<H, R> PKCS1<H, R>
     /// For performance, we don't use the generic ASN1 encoder. Rather, we
     /// precompute a prefix of the digest value that makes a valid ASN1 DER string
     /// with the correct contents.
-    fn pkcs1_hash_prefix(&self) -> Result<Vec<u8>, CryptoError> {
+    fn pkcs1_hash_prefix() -> Result<Vec<u8>, CryptoError> {
         if TypeId::of::<H>() == TypeId::of::<MD5>() {
             Ok(vec![0x30, 0x20, 0x30, 0x0c, 0x06, 0x08, 0x2a, 0x86, 0x48, 0x86, 0xf7, 0x0d, 0x02, 0x05, 0x05, 0x00, 0x04, 0x10])
         } else if TypeId::of::<H>() == TypeId::of::<SHA1>() {
@@ -215,7 +222,7 @@ impl<H, R> PKCS1<H, R>
         } else if TypeId::of::<H>() == TypeId::of::<SHA512>() {
             Ok(vec![0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40])
         } else {
-            Err(CryptoError::new(CryptoErrorKind::NotSupportUsage, format!("{} is not currently supported", std::any::type_name::<H>())))
+            unreachable!(format!("not suuport {}", std::any::type_name::<H>()));
         }
     }
     
@@ -224,8 +231,184 @@ impl<H, R> PKCS1<H, R>
         if len != h_len {
             Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Invalid m_hash length"))
         } else {
-            self.pkcs1_hash_prefix().map(|x| {(x, len)})
+            Self::pkcs1_hash_prefix().map(|x| {(x, len)})
         }
     }
 } 
 
+
+impl<H, R> PKCS1<H, R>
+    where H: Digest + Clone, R: IterSource<u32> {
+
+    pub fn digest_func(&self) -> H {
+        let mut h = unsafe {
+            (*self.inner.as_ptr()).hf.clone()
+        };
+        h.reset();
+        h
+    }
+}
+
+impl<H, R> PKCS1<H, R>
+    where H: Digest, R: IterSource<u32> + Clone {
+
+    pub fn rand_source(&self) -> R {
+        unsafe {
+            (*self.inner.as_ptr()).rd.clone()
+        }
+    }
+}
+
+impl<H, R> PKCS1<H, R>
+    where H: Digest + Any, R: IterSource<u32> {
+    
+    fn get_pkcs1inner(&self) -> &PKCS1Inner<H, R> {
+        unsafe {
+            & (*self.inner.as_ptr())
+        }
+    }
+    
+    fn get_pkcs1inner_mut(&self) -> &mut PKCS1Inner<H, R> {
+        unsafe {
+            &mut (*self.inner.as_ptr())
+        }
+    }
+
+    /// digest message length in bytes
+    pub fn digest_len(&self) -> usize {
+        (self.get_pkcs1inner().hf.bits_len() + 7) >> 3
+    }
+
+    /// public key length in bytes
+    pub fn modulus_len(&self) -> usize {
+        self.public_key().modulus_len()
+    }
+
+    pub fn public_key(&self) -> &PublicKey {
+        self.get_pkcs1inner().kp.public_key()
+    }
+
+    /// maximum message length in byte allowed to be encrypted
+    pub fn encrypt_max_message_len(&self) -> usize {
+        self.modulus_len().saturating_sub(11)
+    }
+    
+    fn check_hash_is_support() -> Result<(), CryptoError> {
+        if TypeId::of::<H>() != TypeId::of::<MD5>() {
+            Ok(())
+        } else if TypeId::of::<H>() != TypeId::of::<SHA1>() {
+            Ok(())
+        } else if TypeId::of::<H>() != TypeId::of::<SHA224>() {
+            Ok(())
+        } else if TypeId::of::<H>() != TypeId::of::<SHA256>() {
+            Ok(())
+        } else if TypeId::of::<H>() != TypeId::of::<SHA384>() {
+            Ok(())
+        } else if TypeId::of::<H>() != TypeId::of::<SHA512>() {
+            Ok(())
+        } else {
+            Err(CryptoError::new(CryptoErrorKind::NotSupportUsage, format!("{} is not currently supported", std::any::type_name::<H>())))
+        }
+    }
+
+    fn pkcs1_hash_prefix_len() -> usize {
+        if TypeId::of::<H>() == TypeId::of::<MD5>() {
+            18
+        } else if TypeId::of::<H>() == TypeId::of::<SHA1>() {
+            15
+        } else if TypeId::of::<H>() == TypeId::of::<SHA224>() {
+            19
+        } else if TypeId::of::<H>() == TypeId::of::<SHA256>() {
+            19
+        } else if TypeId::of::<H>() == TypeId::of::<SHA384>() {
+            19
+        } else if TypeId::of::<H>() == TypeId::of::<SHA512>() {
+            19
+        } else {
+            unreachable!(format!("not suuport {}", std::any::type_name::<H>()));
+        }
+    }
+
+    /// maximum message length in byte  allowed to be signing
+    pub fn sign_max_message_len(&self) -> usize {
+        self.modulus_len().saturating_sub(11).saturating_sub(Self::pkcs1_hash_prefix_len())
+    }
+    
+    pub fn new_uncheck(digest: H, rd: R, key_pair: KeyPair, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        Self::check_hash_is_support()?;
+        
+        if key_pair.modulus_len() <= 11 {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The modulus length is too small"));
+        }
+
+        let inner = PKCS1Inner::new(digest, rd, key_pair, is_enable_blinding)?;
+        
+        Ok(
+            Self {
+                inner: Cell::new(inner),
+            }
+        )
+    }
+    
+    pub fn new(digest: H, rd: R, key_pair: KeyPair, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        Self::check_hash_is_support()?;
+        
+        if key_pair.private_key().is_some() {
+            key_pair.private_key().unwrap().is_valid()?;
+        } else {
+            key_pair.public_key().is_valid()?;
+        }
+        
+        Self::new_uncheck(digest, rd, key_pair, is_enable_blinding)
+    }
+    
+    pub fn auto_generate_key(bits_len: usize, test_round_times: usize, digest: H, mut rd: R, is_enable_blinding: bool) -> Result<Self, CryptoError> {
+        Self::check_hash_is_support()?;
+        
+        let h_len = (digest.bits_len() + 7) >> 3;
+        
+        if bits_len <= (11 + h_len) {
+            return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "The bits_len is too small"));
+        }
+        
+        let key_ = PrivateKey::generate_key(bits_len, test_round_times, &mut rd)?;
+        
+        Self::new_uncheck(digest, rd, KeyPair::from(key_), is_enable_blinding)
+    }
+}
+
+impl<H, R> Cipher for PKCS1<H, R>
+    where H: Digest + Any, R: IterSource<u32> {
+    type Output = ();
+
+    fn block_size(&self) -> Option<usize> {
+        None
+    }
+
+    /// the length of plaintext should be less than or equal to `self.encrypt_max_message_len()`
+    fn encrypt(&self, dst: &mut Vec<u8>, plaintext_block: &[u8]) -> Result<Self::Output, CryptoError> {
+        let inner = self.get_pkcs1inner_mut();
+        inner.encrypt(dst, plaintext_block)
+    }
+
+    /// the length of ciphertex should be equal to `self.modulus_len()`
+    fn decrypt(&self, dst: &mut Vec<u8>, cipher_block: &[u8]) -> Result<Self::Output, CryptoError> {
+        let inner = self.get_pkcs1inner_mut();
+        inner.decrypt(dst, cipher_block)
+    }
+}
+
+impl<H, R> Signature for PKCS1<H, R>
+    where H: Digest + Any, R: IterSource<u32> {
+    type Output = ();
+
+    /// the length of message should be less than or equal to `self.sign_max_message_len()`
+    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.inner.get_mut().sign(signature, message)
+    }
+
+    /// the length of signature should be equal to `self.modulus_len()`
+    fn verify(&mut self, message: &mut Vec<u8>, signature: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.inner.get_mut().verify(message, signature)
+    }
+}

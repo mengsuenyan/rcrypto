@@ -47,3 +47,5 @@ mod kdf;
 mod dss;
 
 pub mod rsa;
+
+pub mod elliptic;

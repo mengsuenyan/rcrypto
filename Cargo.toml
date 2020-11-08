@@ -7,7 +7,7 @@ license = "Apache-2.0"
 description = "A rust cryptography library"
 readme = "Readme.md"
 repository = "https://github.com/mengsuenyan/rcrypto.git"
-documentation = "https://docs.rs/rcrypto/0.1.0/rcrypto/"
+documentation = "https://docs.rs/rcrypto/0.1.2/rcrypto/"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

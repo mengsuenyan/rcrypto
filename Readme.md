@@ -19,3 +19,5 @@ A rust cryptography library
 - [x] ZUC/ZUCCipher/ZUCMac;
 - [x] SM4;
 - [x] RSA;
+- [x] EllipticCurve;
+- [x] DSA;

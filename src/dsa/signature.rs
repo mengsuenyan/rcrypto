@@ -9,7 +9,19 @@ pub struct SignatureContent {
 }
 
 impl SignatureContent {
-    pub fn new(r: &BigInt, s: &BigInt) -> Self {
+    pub fn new() -> Self {
+        Self::with_capacity(1)
+    }
+    
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            content: Vec::with_capacity(capacity),
+            r_len: 0,
+            s_len: 0,
+        }
+    }
+    
+    pub fn form_bigint(r: &BigInt, s: &BigInt) -> Self {
         let mut buf = Vec::new();
         buf.append(&mut r.to_be_bytes());
         let r_len = buf.len();

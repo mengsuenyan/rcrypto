@@ -199,6 +199,10 @@ impl<H, R> DSA<H, R>
         let dp = Self::l3072_n256(rd)?;
         Self::generate_key_inner(dp, rd)
     }
+    
+    pub fn key_pair(&self) -> &KeyPair {
+        &self.key_pair
+    }
 }
 
 impl<H, R> DSA<H, R> 
@@ -269,7 +273,6 @@ impl<H, R> DSA<H, R>
         
         let n = n >> 3;
         for _ in 0..10 {
-            
             let k = loop {
                 let k = dp.q.random(&mut self.rd);
                 if k.signnum() == Some(1) && k.as_ref() > &0u32 {
@@ -359,6 +362,7 @@ impl<H, R> DSA<H, R> {
 }
 
 impl DomainParameters {
+    #[allow(unused)]
     fn check_pq_len(p: usize, q: usize) -> bool {
         if (p == 1024  && q == 160) || (p == 2048 && q == 224) 
             || (p == 2048 && q == 256) || (p == 3072 && q == 256) {
@@ -368,9 +372,15 @@ impl DomainParameters {
         }
     }
     
+    /// (p,q,g)
+    #[allow(unused)]
+    pub(super) fn unwrap(&self) -> (&BigInt, &BigInt, &BigInt) {
+        (&self.p, &self.q, &self.g)
+    }
+    
     pub fn new_uncheck(p: &BigInt, q: &BigInt, g: &BigInt) -> Result<Self, CryptoError> {
         let (p_len, q_len, g_len) = (p.bits_len(), q.bits_len(), g.bits_len());
-        if !Self::check_pq_len(p_len, q_len) || g_len == 0 || g_len > p_len {
+        if p_len == 0 || q_len == 0 || g_len == 0 || g_len > p_len {
             return Err(CryptoError::new(CryptoErrorKind::InvalidParameter, "Invalid domain parameter size"));
         } 
         

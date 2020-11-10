@@ -123,7 +123,7 @@ impl<H, R, C> ECDSA<H, R, C>
         };
         
         let mut ret = BigInt::from_be_bytes(hash);
-        let excess = (hash.len() << 3) - order_bits;
+        let excess = (hash.len() << 3).saturating_sub(order_bits);
         if excess > 0 {
             ret >>= excess;
         }
@@ -150,7 +150,11 @@ impl<H, R, C> ECDSA<H, R, C>
             entropy.push(((e >> 16) & 0xff) as u8);
             entropy.push(((e >> 8) & 0xff) as u8);
             entropy.push(( e & 0xff) as u8);
+            if entropy.len() >= entropy_len {
+                break;
+            }
         }
+        entropy.truncate(entropy_len);
         
         self.md.reset();
         self.md.write(d_bytes.as_slice());
@@ -201,7 +205,7 @@ impl<H, R, C> ECDSA<H, R, C>
             r >= n || s >= n {
             return Err(CryptoError::new(CryptoErrorKind::VerificationFailed, ""));
         }
-        
+
         let mut e = self.hash_to_bigint(hash);
         let mut w = s.mod_inverse(n.clone());
         e *= w.clone();

@@ -21,3 +21,4 @@ A rust cryptography library
 - [x] RSA;
 - [x] EllipticCurve;
 - [x] DSA;
+- [x] ECDSA;

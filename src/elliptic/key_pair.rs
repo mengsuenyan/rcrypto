@@ -1,4 +1,5 @@
 use rmath::bigint::BigInt;
+use std::fmt::{Display, Formatter, Debug};
 
 pub struct PublicKey {
     // public key Q: (qx,qy)
@@ -86,5 +87,35 @@ impl KeyPair {
     
     pub fn private_key(&self) -> Option<&PrivateKey> {
         self.pri_key.as_ref()
+    }
+}
+
+impl Display for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let qx = format!("{:#x}", self.qx);
+        let qy = format!("{:#x}", self.qy);
+        
+        write!(f, "{{qx: \"{}\", qy: \"{}\"}}", qx, qy)
+    }
+}
+
+impl Debug for PublicKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
+    }
+}
+
+impl Display for PrivateKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let pk = format!("{}", self.pk);
+        let d = format!("{:#x}", self.d);
+        
+        write!(f, "{{d: \"{}\", {}}}", d, pk)
+    }
+}
+
+impl Debug for PrivateKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

@@ -13,5 +13,5 @@ documentation = "https://docs.rs/rcrypto/0.1.2/rcrypto/"
 
 [dependencies]
 
-rmath = "0.1.4"
+rmath = "0.1.5"
 

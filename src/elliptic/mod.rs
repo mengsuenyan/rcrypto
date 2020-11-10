@@ -17,3 +17,6 @@ pub use p224::{CurveP224};
 
 mod p256;
 pub use p256::{CurveP256};
+
+#[cfg(test)]
+mod elliptic_test;

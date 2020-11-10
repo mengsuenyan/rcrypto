@@ -174,7 +174,7 @@ impl CurveP256 {
         } else{
             n.to_be_bytes()
         };
-        out.iter_mut().rev().zip(a.iter()).for_each(|(x, &y)| {
+        out.iter_mut().take(a.len()).rev().zip(a.iter()).for_each(|(x, &y)| {
             *x = y;
         });
     }
@@ -234,6 +234,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = out[i] >> 28;
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
         
         Self::p256_reduce_carry(out, carry);
@@ -271,6 +272,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = out[i] >> 28;
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
         
         Self::p256_reduce_carry(out, carry);
@@ -313,7 +315,8 @@ impl CurveP256 {
         carry = tmp2[1] >> 28;
         tmp2[1] &= BOTTOM_28BITS;
 
-        for i in 2..17 {
+        let mut i = 2;
+        while i < 17 {
             tmp2[i] = (Self::uint32(tmp[i-2] >> 32)) >> 25;
             tmp2[i] = tmp2[i].wrapping_add((Self::uint32(tmp[i-1])) >> 28);
             tmp2[i] = tmp2[i].wrapping_add((Self::uint32(tmp[i-1]>>32) << 4) & BOTTOM_29BITS);
@@ -322,7 +325,7 @@ impl CurveP256 {
             carry = tmp2[i] >> 29;
             tmp2[i] &= BOTTOM_29BITS;
 
-            let i = i + 1;
+            i += 1;
             if i == 17 {
                 break;
             }
@@ -333,6 +336,7 @@ impl CurveP256 {
             tmp2[i] = tmp2[i].wrapping_add(carry);
             carry = tmp2[i] >> 28;
             tmp2[i] &= BOTTOM_28BITS;
+            i += 1;
         }
 
         tmp2[17] = Self::uint32(tmp[15]>>32) >> 25;
@@ -464,6 +468,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = out[i] >> 28;
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
 
         out[8] = tmp2[17];
@@ -723,6 +728,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = out[i] >> 28;
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
         
         Self::p256_reduce_carry(out, carry);
@@ -754,6 +760,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = next_carry.wrapping_add(out[i] >> 28);
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
         
         Self::p256_reduce_carry(out, carry);
@@ -784,6 +791,7 @@ impl CurveP256 {
             out[i] = out[i].wrapping_add(carry);
             carry = next_carry.wrapping_add(out[i] >> 28);
             out[i] &= BOTTOM_28BITS;
+            i += 1;
         }
         
         Self::p256_reduce_carry(out, carry);
@@ -935,13 +943,13 @@ impl CurveP256 {
     /// On entry: mask is either 0 or 0xffffffff.
     fn p256_copy_conditional(out: &mut P256FEle, a: &P256FEle, mask: u32) {
         out.iter_mut().zip(a.iter()).for_each(|(x, &y)| {
-            *x = mask & (y ^ (*x));
+            *x ^= mask & (y ^ (*x));
         });
     }
 
     /// p256SelectAffinePoint sets {out_x,out_y} to the index'th entry of table.
     /// On entry: index < 16, table[0] must be zero.
-    fn p256_select_affine_point(xout: &mut P256FEle, yout: &mut P256FEle, table: &[u32], index: u32) {
+    fn p256_select_affine_point(xout: &mut P256FEle, yout: &mut P256FEle, mut table: &[u32], index: u32) {
         xout.iter_mut().zip(yout.iter_mut()).for_each(|(x, y)| {
             *x = 0; *y = 0;
         });
@@ -951,11 +959,14 @@ impl CurveP256 {
             mask |= mask >> 1;
             mask &= 1;
             mask = mask.wrapping_sub(1);
-            xout.iter_mut().zip(yout.iter_mut().zip(table.iter())).for_each(|(x, (y, &t))| {
-                let tmp = t & mask;
-                *x |= tmp;
-                *y |= tmp;
+            xout.iter_mut().zip(table.iter()).for_each(|(x, &t)| {
+                *x |= t & mask;
             });
+            table = &table[xout.len()..];
+            yout.iter_mut().zip(table.iter()).for_each(|(y, &t)|{
+                *y |= t & mask;
+            });
+            table = &table[xout.len()..];
         }
     }
 
@@ -974,8 +985,7 @@ impl CurveP256 {
             let mut mask = i ^ index;
             mask |= mask >> 2;
             mask |= mask >> 1;
-            mask &= 1;
-            mask = mask.saturating_sub(1);
+            mask = if (mask & 1) == 1 {0} else {u32::MAX};
             for (j, x) in xout.iter_mut().enumerate() {
                 *x |= table[i as usize][0][j] & mask;
             }
@@ -1061,7 +1071,7 @@ impl CurveP256 {
     
     fn p256_to_bigint(&self, a: &P256FEle) -> BigInt {
         let mut result = Nat::from(a[P256_LIMBS - 1]);
-        for (i, &ele) in a.iter().rev().skip(1).enumerate() {
+        for (i, &ele) in a.iter().enumerate().rev().skip(1) {
             if (i & 1) == 0 {
                 result <<= 29;
             } else {
@@ -1099,6 +1109,7 @@ impl CurveP256 {
             Self::p256_point_double_a(&mut precomp[i][0], &mut precomp[i][1], &mut precomp[i][2], &precomp[i/2][0], &precomp[i/2][1], &precomp[i/2][2]);
             Self::p256_point_add_mixed_a(&mut precomp[i+1][0], &mut precomp[i+1][1], &mut precomp[i+1][2], &precomp[i][0], &precomp[i][1], &precomp[i][2], x, y);
         }
+        
 
         xout.iter_mut().zip(yout.iter_mut().zip(zout.iter_mut())).for_each(|(m, (n, l))| {
             *m = 0; *n = 0; *l = 0;
@@ -1145,7 +1156,7 @@ impl CurveP256 {
         
         while i < out.len() {
             let tmp_nat: &[u32] = tmp.as_ref().as_ref();
-            out[i] = tmp_nat[0];
+            out[i] = tmp_nat[0] & BOTTOM_29BITS;
             tmp >>= 29;
             
             i += 1;
@@ -1153,8 +1164,9 @@ impl CurveP256 {
                 break;
             }
             let tmp_nat: &[u32] = tmp.as_ref().as_ref();
-            out[i] = tmp_nat[0];
+            out[i] = tmp_nat[0] & BOTTOM_28BITS;
             tmp >>= 28;
+            i += 1;
         }
     }
 }

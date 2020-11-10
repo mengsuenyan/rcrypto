@@ -317,7 +317,7 @@ impl CurveP224 {
         });
         Self::p224_mul_a(&mut f2, &f2, &f1, &mut c); // 2**12 - 1
         Self::p224_square(&mut f3, &f2, &mut c);   // 2**13 - 2
-        (0..1).for_each(|_|{  // 2**24 - 2**12
+        (0..11).for_each(|_|{  // 2**24 - 2**12
             Self::p224_square_a(&mut f3, &f3, &mut c);
         });
         Self::p224_mul_a(&mut f2, &f3, &f2, &mut c); // 2**24 - 1
@@ -447,7 +447,7 @@ impl CurveP224 {
         //    If it's = 0xffff000 and top4AllOnes != 0 and bottom3NonZero != 0,
         //      then the whole value is >= p
         //    If it's < 0xffff000, then the whole value is < p
-        let n = out[3] - 0xffff000;
+        let n = out[3].wrapping_sub( 0xffff000);
         let mut out3_equal = n;
         out3_equal |= out3_equal >> 16;
         out3_equal |= out3_equal >> 8;
@@ -488,7 +488,7 @@ impl CurveP224 {
         let (mut is_zero, mut is_p) = (0u32, 0u32);
         minimal.iter().zip(P224_P.iter()).for_each(|(&v, &p)| {
             is_zero  |= v;
-            is_p |= v - p;
+            is_p |= v.wrapping_sub(p);
         });
 
         // If either isZero or isP is 0, then we should return 1.
@@ -511,15 +511,13 @@ impl CurveP224 {
     
     fn p224_scalar_mult(x1: &mut P224FieldElement, y1: &mut P224FieldElement, z1: &mut P224FieldElement, x0: &P224FieldElement, y0: &P224FieldElement, z0: &P224FieldElement, scalar: &[u8]) {
         let (mut xx, mut yy, mut zz) = (PFE_DF,PFE_DF,PFE_DF);
-        let (mut tmpx, mut tmpy, mut tmpz);
         x1.iter_mut().zip(y1.iter_mut().zip(z1.iter_mut())).for_each(|(p, (q, r))| {
             *p = 0; *q = 0; *r = 0;
         });
         
         for &byte in scalar.iter() {
             for bitnum in 0..8 {
-                tmpx =*x1; tmpy=*y1; tmpz = *z1;
-                Self::p224_double_jacobian(x1, y1, z1, &tmpx, &tmpy, &tmpz);
+                Self::p224_double_jacobian_a(x1, y1, z1, x1, y1, z1);
                 let bit = ((byte >> (7 - bitnum)) & 1) as u32;
                 Self::p224_add_jacobian(&mut xx, &mut yy, &mut zz, x0, y0, z0, x1, y1, z1);
                 Self::p224_copy_conditional(x1, &xx, bit);
@@ -632,6 +630,13 @@ impl CurveP224 {
         Self::p224_copy_conditional(y3, y1, z2_is_zero);
         Self::p224_copy_conditional(z3, z2, z1_is_zero);
         Self::p224_copy_conditional(z3, z1, z2_is_zero);
+    }
+    
+    fn p224_double_jacobian_a(x3: *mut P224FieldElement, y3: *mut P224FieldElement, z3: *mut P224FieldElement, x1: *const P224FieldElement, y1: *const P224FieldElement, z1: *const P224FieldElement) {
+        let (x3, y3, z3, x1, y1, z1) = unsafe {
+            (&mut *x3, &mut *y3, &mut *z3, &*x1, &*y1, &*z1)
+        };
+        Self::p224_double_jacobian(x3, y3, z3, x1, y1, z1);
     }
     
     fn p224_double_jacobian(x3: &mut P224FieldElement, y3: &mut P224FieldElement, z3: &mut P224FieldElement, x1: &P224FieldElement, y1: &P224FieldElement, z1: &P224FieldElement) {

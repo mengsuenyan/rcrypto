@@ -21,7 +21,8 @@ pub struct CurveParams {
     name: String,
 }
 
-/// A Curve represents a short-form Weierstrass curve with a=-3.
+/// A Curve represents a short-form Weierstrass curve with a=-3.  
+/// (0, 0) identifies the infinite point. 
 /// See https://www.hyperelliptic.org/EFD/g1p/auto-shortw.html
 pub trait EllipticCurve {
     fn curve_params(&self) -> &CurveParams;

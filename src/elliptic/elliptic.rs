@@ -110,29 +110,27 @@ impl EllipticCurve for CurveParams {
 }
 
 impl CurveParams {
-    pub(super) fn field_order(&self) -> &BigInt {
+    pub(crate) fn field_order(&self) -> &BigInt {
         &self.p
     }
     
-    pub(super) fn base_point_order(&self) -> &BigInt {
+    pub(crate) fn base_point_order(&self) -> &BigInt {
         &self.n
     }
     
-    #[allow(unused)]
-    pub(super) fn field_bits_size(&self) -> usize {
+    pub fn field_bits_size(&self) -> usize {
         self.bit_size
     }
     
-    pub(super) fn base_point(&self) -> (&BigInt, &BigInt) {
+    pub(crate) fn base_point(&self) -> (&BigInt, &BigInt) {
         (&self.gx, &self.gy)
     }
 
-    #[allow(unused)]
-    pub(super) fn name(&self) -> &str {
+    pub fn name(&self) -> &str {
         self.name.as_str()
     }
     
-    pub(super) fn coefficient_b(&self) -> &BigInt {
+    pub(crate) fn coefficient_b(&self) -> &BigInt {
         &self.b
     }
     

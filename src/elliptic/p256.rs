@@ -149,6 +149,15 @@ pub struct CurveP256 {
     r_inv: BigInt,
 }
 
+impl Clone for CurveP256 {
+    fn clone(&self) -> Self {
+        Self {
+            cp: self.cp.clone(),
+            r_inv: self.r_inv.deep_clone(),
+        }
+    }
+}
+
 impl CurveP256 {
     pub fn new() -> Result<Self, CryptoError> {
         let cp = CurveParams::p256()?;

@@ -9,7 +9,7 @@ mod elliptic;
 pub use elliptic::{CurveParams, EllipticCurve};
 
 mod key_pair;
-pub use key_pair::{PublicKey, PrivateKey};
+pub use key_pair::{PublicKey, PrivateKey, KeyPair};
 
 mod p224;
 pub use p224::{CurveP224};

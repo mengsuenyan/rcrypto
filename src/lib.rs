@@ -49,3 +49,5 @@ pub mod dsa;
 pub mod rsa;
 
 pub mod elliptic;
+
+pub mod ecdsa;

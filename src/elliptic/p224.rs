@@ -46,6 +46,17 @@ pub struct CurveP224 {
     b: P224FieldElement,
 }
 
+impl Clone for CurveP224 {
+    fn clone(&self) -> Self {
+        Self {
+            cp: self.cp.clone(),
+            gx: self.gx.clone(),
+            gy: self.gy.clone(),
+            b: self.b.clone(),
+        }
+    }
+}
+
 impl CurveP224 {
     pub fn new() -> Result<Self, CryptoError> {
         let cp = CurveParams::p224()?;

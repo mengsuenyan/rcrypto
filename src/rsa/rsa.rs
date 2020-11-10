@@ -562,12 +562,26 @@ impl CRTValue {
 
 impl Display for PublicKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "N={:#x}; E={:#x}", self.n, self.e)
+        write!(f, "{{n=\"{:#x}\", e:\"{:#x}\"}}", self.n, self.e)
     }
 }
 
 impl Debug for PublicKey {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "N={:#x}; E={:#x}", self.n, self.e)
+        write!(f, "{}", self)
+    }
+}
+
+impl Display for PrivateKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let pk = format!("{}", self.pk);
+        let d = format!("{:#x}", self.d);
+        write!(f, "{{d: \"{}\", {}}}", d, pk)
+    }
+}
+
+impl Debug for PrivateKey {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self)
     }
 }

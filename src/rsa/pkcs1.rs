@@ -8,7 +8,7 @@ use std::any::{TypeId, Any};
 use crate::sha::{SHA1, SHA224, SHA384, SHA256, SHA512};
 use std::cell::Cell;
 use rmath::rand::IterSource;
-use crate::rsa::{PublicKey, PrivateKey};
+use crate::rsa::{PublicKey, PrivateKey, SignatureContent};
 
 struct PKCS1Inner<H, R> {
     kp: KeyPair,
@@ -397,17 +397,17 @@ impl<H, R> Cipher for PKCS1<H, R>
     }
 }
 
-impl<H, R> Signature for PKCS1<H, R>
+impl<H, R> Signature<SignatureContent> for PKCS1<H, R>
     where H: Digest + Any, R: IterSource<u32> {
     type Output = ();
 
     /// the length of message should be less than or equal to `self.sign_max_message_len()`
-    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.inner.get_mut().sign(signature, message)
+    fn sign(&mut self, signature: &mut SignatureContent, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.inner.get_mut().sign(signature.as_mut(), message)
     }
 
     /// the length of signature should be equal to `self.modulus_len()`
-    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.inner.get_mut().verify(signature, message)
+    fn verify(&mut self, signature: &SignatureContent, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.inner.get_mut().verify(signature.as_ref(), message)
     }
 }

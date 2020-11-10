@@ -16,6 +16,9 @@ pub use pkcs1::{PKCS1};
 mod pss;
 pub use pss::{PSS};
 
+mod signature;
+pub use signature::SignatureContent;
+
 #[cfg(test)]
 mod rsa_test;
 

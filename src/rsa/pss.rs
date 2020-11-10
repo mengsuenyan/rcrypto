@@ -2,7 +2,7 @@
 //! 
 
 use crate::{Digest, CryptoError, CryptoErrorKind, Signature};
-use crate::rsa::{PublicKey, PrivateKey};
+use crate::rsa::{PublicKey, PrivateKey, SignatureContent};
 use rmath::bigint::BigInt;
 use crate::rsa::rsa::KeyPair;
 use rmath::rand::IterSource;
@@ -316,18 +316,17 @@ impl<H, R> PSS<H, R>
     }
 }
 
-
-impl<H, R> Signature for PSS<H, R>
+impl<H, R> Signature<SignatureContent> for PSS<H, R>
     where H: Digest, R: IterSource<u32> {
     type Output = ();
 
     /// the length of message should be less than or equal to `self.digest_len() + self.salt_len() + 2`
-    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.sign_inner(signature, message)
+    fn sign(&mut self, signature: &mut SignatureContent, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.sign_inner(signature.as_mut(), message)
     }
 
     /// the length of signature should be equal to `self.modulus_len()`
-    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError> {
-        self.verify_inner(signature, message)
+    fn verify(&mut self, signature: &SignatureContent, message: &[u8]) -> Result<Self::Output, CryptoError> {
+        self.verify_inner(signature.as_ref(), message)
     }
 }

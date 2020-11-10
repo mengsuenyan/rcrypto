@@ -44,10 +44,10 @@ pub trait DigestXOF: Digest {
 }
 
 /// A trait for signature algorithms
-pub trait Signature {
+pub trait Signature<T> {
     type Output;
     
-    fn sign(&mut self, signature: &mut Vec<u8>, message: &[u8]) -> Result<Self::Output, CryptoError>;
+    fn sign(&mut self, signature: &mut T, message: &[u8]) -> Result<Self::Output, CryptoError>;
     
-    fn verify(&mut self, signature: &[u8], message: &[u8]) -> Result<Self::Output, CryptoError>;
+    fn verify(&mut self, signature: &T, message: &[u8]) -> Result<Self::Output, CryptoError>;
 }

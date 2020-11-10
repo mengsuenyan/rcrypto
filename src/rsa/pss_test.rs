@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use crate::rsa::{PrivateKey, PSS, KeyPair};
+use crate::rsa::{PrivateKey, PSS, KeyPair, SignatureContent};
 use crate::{sha, Signature};
 use rmath::bigint::BigInt;
 use rmath::rand::{DefaultSeed, CryptoRand};
@@ -69,7 +69,7 @@ fn emsa_pss() {
 #[test]
 fn emsa_pss_openssl() {
     let sig = vec![
-        0x95, 0x59, 0x6f, 0xd3, 0x10, 0xa2, 0xe7, 0xa2, 0x92, 0x9d,
+        0x95u8, 0x59, 0x6f, 0xd3, 0x10, 0xa2, 0xe7, 0xa2, 0x92, 0x9d,
         0x4a, 0x07, 0x2e, 0x2b, 0x27, 0xcc, 0x06, 0xc2, 0x87, 0x2c,
         0x52, 0xf0, 0x4a, 0xcc, 0x05, 0x94, 0xf2, 0xc3, 0x2e, 0x20,
         0xd7, 0x3e, 0x66, 0x62, 0xb5, 0x95, 0x2b, 0xa3, 0x93, 0x9a,
@@ -83,8 +83,8 @@ fn emsa_pss_openssl() {
     let pk = emsa_get_private_key();
     let mut emsa = PSS::new_uncheck(sha256, rd, KeyPair::from(pk), Some(0), false).unwrap();
     let msg = "testing";
-    let mut sign = Vec::with_capacity(64);
-    emsa.verify(sig.as_slice(), msg.as_bytes()).unwrap();
+    let mut sign = SignatureContent::with_capacity(64);
+    emsa.verify(&SignatureContent::from(sig), msg.as_bytes()).unwrap();
     emsa.sign(&mut sign, msg.as_bytes()).unwrap();
-    emsa.verify(sign.as_slice(), msg.as_bytes()).unwrap();
+    emsa.verify(&sign, msg.as_bytes()).unwrap();
 }

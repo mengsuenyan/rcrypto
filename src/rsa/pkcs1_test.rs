@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use rmath::bigint::BigInt;
-use crate::rsa::{PrivateKey, PKCS1, KeyPair};
+use crate::rsa::{PrivateKey, PKCS1, KeyPair, SignatureContent};
 use rmath::rand::{DefaultSeed, CryptoRand};
 use crate::{sha, Cipher, Signature};
 
@@ -49,7 +49,7 @@ fn pkcs1_sign() {
     
     for (i, ele) in cases.iter().enumerate() {
         let pk = pkcs1_get_private_key();
-        let mut buf = Vec::new();
+        let mut buf = SignatureContent::new();
         let seed = DefaultSeed::<u32>::new().unwrap();
         let rd = CryptoRand::new(&seed).unwrap();
         let sha1 = sha::SHA1::new();
@@ -58,6 +58,6 @@ fn pkcs1_sign() {
         pkcs1.sign(&mut buf, ele.0.as_bytes()).unwrap();
         assert_eq!(buf.as_slice(), ele.1.as_slice(), "case: {}", i);
         
-        assert!(pkcs1.verify(buf.as_slice(), ele.0.as_bytes()).is_ok(), "case-verify: {}", i)
+        assert!(pkcs1.verify(&buf, ele.0.as_bytes()).is_ok(), "case-verify: {}", i)
     }
 }
